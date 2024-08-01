@@ -1,0 +1,514 @@
+---
+title: "Common_Analysis.Rmd"
+author: "Gregoire Jouault"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Initialisation of packages / functions / paths
+```{r, eval=FALSE}
+library(here)
+source(file.path(here(),"Scripts","global_var.R"))
+maindir = here()
+maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1")
+Input_raw_sc_RNA = file.path(maindir, "Output", "Objects", "hg38", "PDX", "RNA", "scRNAseq")
+Input_raw_bulk_RNA = file.path(maindir, "Input", "hg38", "PDX", "RNA", "BulkRNAseq")
+Input_raw_micro_RNA = file.path(maindir, "Input", "hg38", "PDX", "RNA", "Microarray")
+Output_Objects_CommonAnalysis = file.path(maindir, "Output", "Objects", "hg38", "PDX", "RNA", "Common_Analysis")
+Output_Figs_CommonAnalysis = file.path(maindir, "Output", "Figs", "hg38", "PDX", "RNA", "Common_Analysis")
+Annotations = file.path(maindir, "Annotations")
+```
+
+Create Matrix for all PDX samples on Common gene set to all samples
+```{r}
+#Merge all sc seurat objects to create pseudobulk matrix
+seu = qs::qread(file.path(Input_raw_sc_RNA, PDX_scRNA_samples[1], "Seurat_object_filtered.qs"))
+seu$sample = PDX_scRNA_samples[1]
+#Load all the others ang merge them iteratively
+for(file in PDX_scRNA_samples[-1]) {
+  print(paste0("Loading the seurat object for sample ", file))
+  seu.tmp = qs::qread(file.path(Input_raw_sc_RNA, file, "Seurat_object_filtered.qs"))
+  seu.tmp$sample = file
+  seu = merge(seu, seu.tmp)
+}
+collapsed_sc = presto::collapse_counts(seu@assays$RNA$counts, seu@meta.data, c("sample"), how = "sum")
+pseudobulk_mat = collapsed_sc$counts_mat
+pseudobulk_metadata = collapsed_sc$meta_data
+colnames(pseudobulk_mat) = pseudobulk_metadata$sample
+
+#Load BulkRNAseq samples 
+HBCx14_chemonaive = read.csv(file.path(Input_raw_bulk_RNA, "HBCx14_chemonaive_rawmat.csv"))
+HBCx14_AC = read.csv(file.path(Input_raw_bulk_RNA, "HBCx14_AC_rawmat.csv"))
+HBCx14_Cisplatin = read.csv(file.path(Input_raw_bulk_RNA, "HBCx14_Cisplatin_rawmat.csv"))
+HBCx14_Carboplatin = read.csv(file.path(Input_raw_bulk_RNA, "HBCx14_Carboplatin_rawmat.csv"))
+
+#Load Microarray samples 
+HBCx10_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_chemonaive_rawmat.csv"))
+HBCx10_AC = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_AC_rawmat.csv"))
+HBCx33_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_chemonaive_rawmat.csv"))
+HBCx33_Cisplatin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Cisplatin_rawmat.csv"))
+HBCx33_Capecitabin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabin_rawmat.csv"))
+
+# Merge the matrices by techno 
+pseudobulk_mat = as.data.frame(pseudobulk_mat)
+pseudobulk_mat$Symbol = rownames(pseudobulk_mat)
+
+microarray_mat = merge(HBCx10_AC, HBCx10_chemonaive, by = "Symbol", all = F)
+microarray_mat = merge(microarray_mat, HBCx33_chemonaive, by = "Symbol", all = F)
+microarray_mat = merge(microarray_mat, HBCx33_Cisplatin, by = "Symbol", all = F)
+microarray_mat = merge(microarray_mat, HBCx33_Capecitabin, by = "Symbol", all = F)
+
+rnabulk_mat = merge(HBCx14_AC, HBCx14_chemonaive, by = "Symbol", all = F)
+rnabulk_mat = merge(rnabulk_mat, HBCx14_Carboplatin, by = "Symbol", all = F)
+rnabulk_mat = merge(rnabulk_mat, HBCx14_Cisplatin, by = "Symbol", all = F)
+
+# Merge the matrices inter techno
+clean_pseudo_bulk_mat = merge(pseudobulk_mat, microarray_mat, by = "Symbol")
+clean_pseudo_bulk_mat = merge(clean_pseudo_bulk_mat, rnabulk_mat, by = "Symbol")
+
+#Save this raw matrix 
+write.csv(clean_pseudo_bulk_mat, file.path(Output_Objects_CommonAnalysis, "Common_rawcounts_mat_common_genes_samples.csv"), row.names = F)
+
+```
+
+Create Matrix for all PDX samples on Common gene set to all technos
+```{r}
+
+#Merge all sc seurat objects to create pseudobulk matrix
+seu = qs::qread(file.path(Input_raw_sc_RNA, PDX_scRNA_samples[1], "Seurat_object_filtered.qs"))
+seu$sample = PDX_scRNA_samples[1]
+#Load all the others ang merge them iteratively
+for(file in PDX_scRNA_samples[-1]) {
+  print(paste0("Loading the seurat object for sample ", file))
+  seu.tmp = qs::qread(file.path(Input_raw_sc_RNA, file, "Seurat_object_filtered.qs"))
+  seu.tmp$sample = file
+  seu = merge(seu, seu.tmp)
+}
+collapsed_sc = presto::collapse_counts(seu@assays$RNA$counts, seu@meta.data, c("sample"), how = "sum")
+pseudobulk_mat = collapsed_sc$counts_mat
+pseudobulk_metadata = collapsed_sc$meta_data
+colnames(pseudobulk_mat) = pseudobulk_metadata$sample
+
+#Load BulkRNAseq samples 
+HBCx14_chemonaive = read.csv(file.path(Input_raw_bulk_RNA, "HBCx14_chemonaive_rawmat.csv"))
+HBCx14_AC = read.csv(file.path(Input_raw_bulk_RNA, "HBCx14_AC_rawmat.csv"))
+HBCx14_Cisplatin = read.csv(file.path(Input_raw_bulk_RNA, "HBCx14_Cisplatin_rawmat.csv"))
+HBCx14_Carboplatin = read.csv(file.path(Input_raw_bulk_RNA, "HBCx14_Carboplatin_rawmat.csv"))
+
+#Load Microarray samples 
+HBCx10_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_chemonaive_rawmat.csv"))
+HBCx10_AC = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_AC_rawmat.csv"))
+HBCx33_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_chemonaive_rawmat.csv"))
+HBCx33_Cisplatin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Cisplatin_rawmat.csv"))
+HBCx33_Capecitabin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabin_rawmat.csv"))
+
+# Merge the matrices by techno 
+pseudobulk_mat = as.data.frame(pseudobulk_mat)
+pseudobulk_mat$Symbol = rownames(pseudobulk_mat)
+
+microarray_mat = merge(HBCx10_AC, HBCx10_chemonaive, by = "Symbol", all = T)
+microarray_mat = merge(microarray_mat, HBCx33_chemonaive, by = "Symbol", all = T)
+microarray_mat = merge(microarray_mat, HBCx33_Cisplatin, by = "Symbol", all = T)
+microarray_mat = merge(microarray_mat, HBCx33_Capecitabin, by = "Symbol", all = T)
+microarray_mat[is.na(microarray_mat)] = 0
+
+rnabulk_mat = merge(HBCx14_AC, HBCx14_chemonaive, by = "Symbol", all = T)
+rnabulk_mat = merge(rnabulk_mat, HBCx14_Carboplatin, by = "Symbol", all = T)
+rnabulk_mat = merge(rnabulk_mat, HBCx14_Cisplatin, by = "Symbol", all = T)
+rnabulk_mat[is.na(rnabulk_mat)] = 0
+
+#Save this raw matrix 
+write.csv(clean_pseudo_bulk_mat, file.path(Output_Objects_CommonAnalysis, "Common_rawcounts_mat_common_genes_techno.csv"), row.names = F)
+
+```
+
+Make Count Corrected Matrix (remove techno & sample effect)
+```{r}
+
+####### For the Matrix on the genes common to all samples #########
+
+Common_rawcounts_mat_samples = read.csv(file.path(Output_Objects_CommonAnalysis, "Common_rawcounts_mat_common_genes_samples.csv"))
+
+#Use EdgeR to normalize and remove Sample/Techno effect 
+matrice.edger = as.matrix(Common_rawcounts_mat_samples[,-c(1)])
+rownames(matrice.edger) = Common_rawcounts_mat_samples$Symbol
+colnames(matrice.edger)
+vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)))
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups[groups %in% c("chemonaive")] = "Untreated"
+groups = factor(groups)
+groups = fct_rev(groups)
+mm = model.matrix(~0 + groups)
+
+dge <- DGEList(counts=matrice.edger)
+dge <- normLibSizes(dge, method = "TMM")
+dge$samples
+logCPM <- cpm(dge,log=TRUE)
+logCPM <- removeBatchEffect(logCPM,batch=vec.batch, design = mm)
+logCPM = as.data.frame(logCPM)
+logCPM$Symbol = row.names(logCPM)
+write.csv(logCPM,file.path(Output_Objects_CommonAnalysis, "Common_Corrected_mat_common_genes_samples.csv"), row.names = F)
+
+####### For the Matrix on the genes common to all technos #########
+
+Common_rawcounts_mat_techno = read.csv(file.path(Output_Objects_CommonAnalysis, "Common_rawcounts_mat_common_genes_techno.csv"))
+
+#Use EdgeR to normalize and remove Sample/Techno effect 
+matrice.edger = as.matrix(Common_rawcounts_mat_techno[,-c(1)])
+rownames(matrice.edger) = Common_rawcounts_mat_techno$Symbol
+colnames(matrice.edger)
+vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)))
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups[groups %in% c("chemonaive")] = "Untreated"
+groups = factor(groups)
+groups = fct_rev(groups)
+mm = model.matrix(~0 + groups)
+
+dge <- DGEList(counts=matrice.edger)
+dge <- normLibSizes(dge, method = "TMM")
+dge$samples
+logCPM <- cpm(dge,log=TRUE)
+logCPM <- removeBatchEffect(logCPM,batch=vec.batch, design = mm)
+logCPM = as.data.frame(logCPM)
+logCPM$Symbol = row.names(logCPM)
+write.csv(logCPM,file.path(Output_Objects_CommonAnalysis, "Common_Corrected_mat_common_genes_techno.csv"), row.names = F)
+
+
+```
+
+Make PCA & Hierarchical Clustering - tables & plot 
+```{r}
+#Load Corrected matrix 
+logCPM = read.csv(file.path(Output_Objects_CommonAnalysis, "Common_Corrected_mat_common_genes_samples.csv"), row.names = "Symbol")
+
+#Select top 500 features
+rv = apply(logCPM, 1, var)
+o <- order(rv, decreasing=TRUE)
+top500 <- head(o, 500)
+logCPM = logCPM[top500,]
+
+matrice.pca = t(logCPM)
+res.pca = prcomp(matrice.pca)
+df_pca = factoextra::get_pca_ind(res.pca)
+df_pca = data.frame(df_pca$coord)
+df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
+df_pca$Sample = rownames(df_pca)
+df_pca$model = gsub("(HBCx.*)_.*","\\1", df_pca$Sample)
+df_pca$suffix = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
+df_pca$state = df_pca$suffix
+df_pca$state[df_pca$state %in% c("AC", "Capecitabin", "Carboplatin", "Cisplatin")] = "Persister"
+table(df_pca$state)
+df_pca$treatment = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
+df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabin"
+df_pca$treatment[df_pca$treatment == "Cispla"] = "Cisplatin"
+df_pca$treatment[df_pca$treatment == "Anthra"] = "AC"
+
+
+# Elbow plot -> Take nPCs = 2 for Hierarchical Clustering 
+pdf(file.path(Output_Figs_CommonAnalysis,"PCA_Allsamples_Elbowplot.pdf"), width = 7, height = 7)
+fviz_eig(res.pca, ncp = 20) + theme_classic()
+dev.off()
+
+#Hierarchical Clustering 
+xxx.pca1 <-prcomp(matrice.pca, rank. = 6) # stats::
+results <- xxx.pca1$x
+dm<-dist(results) 
+hc<-hclust(dm, method="ward.D2") # simple dendrogram
+plot(hc, hang=-1)
+rect.hclust(hc, k=2, border="red")
+cut_K2 <- cutree(hc, k = 2)
+df_pca$Cluster = as.factor(cut_K2)
+
+ggdendrogram(hc)
+dend <- as.dendrogram(hc)
+dend_data <- dendro_data(dend, type = "rectangle")
+dend_data$labels = merge(dend_data$labels, df_pca, by.x = "label", by.y = "Sample")
+
+
+
+pdf(file.path(Output_Figs_CommonAnalysis,"PCA_Allsamples_Statecolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = state)) + 
+  geom_point(size = 6, shape = 21, color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = AnnColor_State)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_CommonAnalysis,"PCA_Allsamples_Modelcolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = model)) + 
+  geom_point(size = 6, shape = 21, color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = AnnColor_Model)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_CommonAnalysis,"PCA_Allsamples_Treatmentcolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, shape = treatment)) + 
+  geom_point(size = 6,fill = "grey50", color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_shape_manual(values = AnnShape_treatment)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_CommonAnalysis,"PCA_Allsamples_Clustercolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, shape = Cluster)) +
+  geom_point(size = 6, alpha = 1, color = "black") + 
+  theme_classic() +
+  scale_shape_manual(values = AnnShape_Cluster) +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  theme(legend.position = "none")
+dev.off()
+
+
+pdf(file.path(Output_Figs_CommonAnalysis,"PCA_Allsamples_Dendrogramm.pdf"), width = 15, height = 15)
+ggplot(dend_data$segments) + 
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = dend_data$labels, aes(x, y, label = label, color = state), hjust = 1, angle = 90, size = 3) + 
+  ylim(-100, 350) + 
+  theme_void() + 
+   scale_color_manual(values = AnnColor_State) +
+  theme(legend.position = "none")
+dev.off()
+
+write.csv(df_pca, file.path(Output_Objects_CommonAnalysis, "DF_PCA_Allsamples.csv"), row.names = F)
+```
+
+Make Differential Analysis - tables & volcano plot
+```{r}
+
+Common_rawcounts_mat_techno = read.csv(file.path(Output_Objects_CommonAnalysis, "Common_rawcounts_mat_common_genes_techno.csv"), row.names = "Symbol")
+matrice.edger = as.matrix(Common_rawcounts_mat_techno)
+vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)), levels = c("HBCx172", "HBCx218", "HBCx221", "HBCx10", "HBCx14", "HBCx33", "HBCx39", "HBCx95"))
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups[groups %in% c("chemonaive")] = "Untreated"
+groups = factor(groups)
+groups = fct_rev(groups)
+table(groups)
+dge0 <- DGEList(counts=matrice.edger)
+dge0 <- calcNormFactors(dge0)
+mm = model.matrix(~0 + groups + vec.batch)
+y = voom(dge0, mm, plot = F)
+fit <- lmFit(y, mm)
+contr <- makeContrasts(groupsPersister - groupsUntreated, levels = colnames(coef(fit)))
+tmp <- contrasts.fit(fit, contr)
+tmp <- eBayes(tmp)
+top.table <- topTable(tmp, sort.by = "P", n = Inf)
+head(top.table, 20)
+top.table$Symbol = rownames(top.table)
+top.table = top.table %>% mutate(status = case_when(adj.P.Val > 0.0001 ~ "Not Sig",
+                                                    abs(logFC) < 0.5 ~ "Not Sig",
+                                        adj.P.Val < 0.0001 & logFC < -0.5 ~ "Down",
+                                        adj.P.Val < 0.0001 & logFC > 0.5 ~ "Up"))
+table(top.table.$status)
+write.csv(top.table, file.path(Output_Objects_CommonAnalysis, "Differential_Analysis_PDX.csv"), row.names = F)
+
+pdf(file.path(Output_Figs_CommonAnalysis,"Volcanoplot_Allsamples_PDX.pdf"), width = 10,height = 10)
+top.table %>%
+  ggplot(aes(x = logFC, y = -log10(adj.P.Val), fill = status)) + 
+  geom_point(size = 4, alpha = 0.4, shape = 21, color = "black") +   
+  geom_hline(yintercept = -log10(0.0001), linetype="dashed") + 
+  geom_vline(xintercept = 0.5, linetype="dashed") +
+   geom_vline(xintercept = -0.5, linetype="dashed") +
+  theme_classic() +
+  scale_fill_manual(values = c("lightskyblue", "grey50", "tomato")) +
+  ggrepel::geom_text_repel(data = dplyr::filter(top.table, -log10(adj.P.Val) > 13), aes(label = Symbol), max.overlaps = 20, color = "black", size = 5)
+dev.off()
+
+png(file.path(Output_Figs_CommonAnalysis,"Volcanoplot_Allsamples_PDX.1.png"),res = 400, width = 2000, height = 2000)
+top.table %>%
+  ggplot(aes(x = logFC, y = -log10(adj.P.Val), fill = status)) + 
+  geom_point(size = 4, alpha = 0.4, shape = 21, color = "black") +   
+  geom_hline(yintercept = -log10(0.0001), linetype="dashed") + 
+  geom_vline(xintercept = 0.5, linetype="dashed") +
+   geom_vline(xintercept = -0.5, linetype="dashed") +
+  theme_classic() +
+  scale_fill_manual(values = c("lightskyblue", "grey50", "tomato")) +
+  ggrepel::geom_text_repel(data = dplyr::filter(top.table, -log10(adj.P.Val) > 13), aes(label = Symbol), max.overlaps = 20, color = "black", size = 5) + 
+  theme(legend.position = "none")
+dev.off()
+
+png(file.path(Output_Figs_CommonAnalysis,"Volcanoplot_Allsamples_PDX.2.png"),res = 400, width = 2000, height = 2000)
+top.table %>%
+  ggplot(aes(x = logFC, y = -log10(adj.P.Val), fill = status)) + 
+  geom_point(size = 4, alpha = 0.4, shape = 21, color = "black") +   
+  geom_hline(yintercept = -log10(0.0001), linetype="dashed") + 
+  geom_vline(xintercept = 0.5, linetype="dashed") +
+   geom_vline(xintercept = -0.5, linetype="dashed") +
+  theme_classic() +
+  scale_fill_manual(values = c("lightskyblue", "grey50", "tomato")) +
+  theme(legend.position = "none")
+dev.off()
+
+
+
+
+```
+
+Make Boxplots of Genes LogCounts 
+```{r}
+#Load Corrected matrix 
+logCPM = read.csv(file.path(Output_Objects_CommonAnalysis, "Common_Corrected_mat_common_genes_samples.csv"), row.names = "Symbol")
+
+
+df_boxplot = logCPM[which(rownames(logCPM) %in% List_genes_boxplot),]
+df_boxplot = as.data.frame(df_boxplot)
+df_boxplot$Gene = rownames(df_boxplot)
+df_boxplot = df_boxplot %>% pivot_longer(cols = 1:ncol(df_boxplot)-1, names_to = "Sample", values_to = "LogCount")
+df_boxplot$State = gsub(".*(Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", df_boxplot$Sample)
+df_boxplot$State[df_boxplot$State %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+df_boxplot$State[df_boxplot$State %in% c("chemonaive")] = "Untreated"
+
+
+pdf(file.path(Output_Figs_CommonAnalysis,"Boxplot_GeneExp_Allsamples.pdf"), width = 10,height = 10)
+all_genes = unique(df_boxplot$Gene)
+gene_to_keep = all_genes[1]
+for (gene_to_keep in all_genes) {
+print(df_boxplot %>% dplyr::filter(Gene == gene_to_keep) %>% ggplot(aes(y = LogCount, x = State, color = State)) +
+  geom_boxplot(size = 3, outlier.shape = NA) + 
+  theme_classic() +
+  scale_x_discrete(limits = c("Untreated", "Persister", "Relapse")) +
+  scale_color_manual(values = c("chartreuse4",  "grey40","grey10")) +
+  geom_jitter(shape = 16, position=position_jitter(0.2), size = 3) +
+  ggtitle(gene_to_keep) +
+  theme(legend.position = "none"))
+  }
+dev.off()
+```
+
+Make Pathway Analysis - Hallmark 
+```{r}
+#Load DA table 
+top.table = read.csv(file.path(Output_Objects_CommonAnalysis, "Differential_Analysis_PDX.csv"))
+
+# Use fgsea to make pathway analysis on the corrected matrix 
+pathwaysDF <- msigdbr("human", category="H")
+pathways <- split(as.character(pathwaysDF$human_gene_symbol), pathwaysDF$gs_name)
+ranks = setNames(top.table$t, top.table$Symbol)
+str(ranks)
+fgseaRes_H <- fgsea(pathways, ranks, minSize=15, maxSize=500)
+fgseaRes_H$Category = "Hallmark"
+head(fgseaRes_H)
+
+fgseaRes_plot = fgseaRes_H %>%mutate(signNES = factor(sign(NES))) %>% dplyr::group_by(signNES) %>% slice_min(padj, n = 4) %>%  arrange(padj) %>%  mutate(log10padj = case_when(signNES == -1 ~ log10(padj), signNES == 1 ~ -log10(padj)))
+
+
+pdf(file.path(Output_Figs_CommonAnalysis,"Hallmark_Allsamples_PDX.pdf"), width = 14,height = 10)
+fgseaRes_plot %>%
+  ggplot(aes(y = pathway, x = log10padj)) +
+  geom_segment(aes(y=reorder(pathway, signNES), yend=reorder(pathway, signNES), x=0, xend=log10padj), color="grey20") +
+  geom_point(aes(color=signNES, size=abs(NES)), alpha=0.6) +
+  theme_classic() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.y = element_blank()
+  ) +
+  scale_size(range = c(5,20), limits = c(1,4.5)) +
+  scale_color_manual(values = c("lightskyblue", "tomato"))
+dev.off()
+
+
+```
+
+Make TFs enrichment Analysis
+```{r}
+#Load DA table 
+top.table. = read.csv(file.path(Output_Objects_CommonAnalysis, "Differential_Analysis_PDX.csv"))
+
+#Load TF CollecTRI network
+net = read.csv(file.path(Annotations, "TFs_network_CollecTRI.csv"))
+
+# TF_enrichment 
+rownames(top.table) = top.table$Symbol
+deg = top.table %>% dplyr::select(t)
+contrast_acts <- decouple(mat=deg, net=net, .source='source', .target='target',minsize = 5, statistics = c("ulm", "wsum", "mlm"), consensus_score = T, args = list(wsum = list(seed = 1, times = 5000)))
+contrast_acts_consensus = contrast_acts %>% dplyr::filter(statistic == "consensus")
+contrast_acts_consensus = mutate(contrast_acts_consensus, ranking = rank(desc(score), ties.method = "first"))
+ 
+write.csv(contrast_acts_consensus, file.path(Output_Objects_CommonAnalysis, "TFenrichment_Allsamples_PDX.csv"), quote = F, row.names = F)
+
+
+pdf(file.path(Output_Figs_CommonAnalysis,"TFenrichment_Allsamples_PDX.pdf"), width = 10,height = 10)
+contrast_acts_consensus %>%
+  dplyr::filter(score > 0) %>%
+  ggplot(aes(x = ranking, y = score, color = ranking < 11)) +
+  geom_point() +
+  theme_classic() +
+    ggrepel::geom_text_repel(data = dplyr::filter(contrast_acts_consensus, ranking < 11), aes(label = source), max.overlaps = 50, color = "black", size = 6)+
+  scale_color_manual(values = c("grey20","tomato")) +
+  theme(legend.position = "none")
+dev.off()
+
+# Import corrected logcount matrix 
+mat = read.csv(file.path(Output_Objects_CommonAnalysis, "Common_Corrected_mat_common_genes_techno.csv"), row.names = "Symbol")
+sample_acts <- run_wsum(mat=mat, net=net, .source='source', .target='target',minsize = 5)
+sample_acts. = sample_acts
+table(sample_acts.$statistic)
+sample_acts = sample_acts. %>% dplyr::filter(statistic == "norm_wsum")
+
+# Transform to wide matrix
+sample_acts_mat <- sample_acts %>% 
+  pivot_wider(id_cols = 'condition', names_from = 'source',
+              values_from = 'score') %>%
+ tibble::column_to_rownames('condition') 
+
+sample_acts_mat$row_order = gsub(".*(Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", rownames(sample_acts_mat))
+sample_acts_mat$row_order[sample_acts_mat$row_order %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+sample_acts_mat$row_order[sample_acts_mat$row_order %in% c("chemonaive")] = "Untreated"  
+table(sample_acts_mat$row_order)
+sample_acts_mat$row_order = factor(sample_acts_mat$row_order,levels = c("Untreated","Persister", "Relapse"))
+sample_acts_mat = sample_acts_mat %>% arrange(row_order)
+sample_acts_mat = as.matrix(sample_acts_mat[,-c(ncol(sample_acts_mat))])
+sample_acts_mat <- sample_acts_mat[,TFs_top10_Allsamples]
+# Scale per sample
+sample_acts_mat <- scale(sample_acts_mat)
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("lightskyblue","grey90","tomato"))(palette_length)
+my_breaks <- c(seq(min(sample_acts_mat), 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05,max(sample_acts_mat), length.out=floor(palette_length/2)))
+
+annot_tfs = data.frame(TF_Family = c(rep("IRF / STAT",2),rep("AP1",2),rep("NFKB",3), rep("Others",3)))
+rownames(annot_tfs) = colnames(sample_acts_mat)
+annot_samples = data.frame(Model = rownames(sample_acts_mat), State = c(rep("chemonaive",23), rep("Persister",42), rep("Relapse",22)))
+rownames(annot_samples) = rownames(sample_acts_mat)
+annot_samples$Model = gsub("(HBCx.*)_.*", "\\1",annot_samples$Model)
+
+ann_colors <- list(
+  Model = AnnColor_Model, 
+  State = AnnColor_State
+)
+
+
+pdf(file.path(Output_Figs_CommonAnalysis, "TFenrichment_Matrix_Allsamples_PDX.1.pdf"), width = 10, height = 10)
+pheatmap::pheatmap(t(sample_acts_mat),border_color = NA, cluster_rows = F, cluster_cols = F, color = my_color, breaks = my_breaks, annotation_names_row = F, annotation_names_col = F,show_colnames = F, show_rownames = T, annotation_row = annot_tfs, annotation_col = annot_samples, annotation_colors = ann_colors, gaps_row = c(2,4,7), gaps_col = c(23,65))
+dev.off()
+
+pdf(file.path(Output_Figs_CommonAnalysis, "TFenrichment_Matrix_Allsamples_PDX.2.pdf"), width = 10, height = 10)
+pheatmap::pheatmap(t(sample_acts_mat),border_color = NA, cluster_rows = F, cluster_cols = F, color = my_color, breaks = my_breaks, annotation_names_row = F, annotation_names_col = F,show_colnames = F, show_rownames = F, annotation_row = annot_tfs, annotation_col = annot_samples, annotation_colors = ann_colors, gaps_row = c(2,4,7), gaps_col = c(23,65))
+dev.off()
+
+
+```
+
+
+

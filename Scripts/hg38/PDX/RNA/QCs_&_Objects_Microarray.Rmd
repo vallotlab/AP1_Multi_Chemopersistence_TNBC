@@ -1,0 +1,283 @@
+---
+title: "QCs_&_Objects_Microarray.Rmd"
+author: "Gregoire Jouault"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Initialisation of packages / functions / paths
+```{r, eval=FALSE}
+library(here)
+source(file.path(here(),"Scripts","global_var.R"))
+maindir = here()
+Input_raw_micro_RNA = file.path(maindir, "Input", "hg38", "PDX", "RNA", "Microarray")
+Output_Objects_micro_RNA = file.path(maindir, "Output","Objects", "hg38", "PDX", "RNA", "Microarray")
+Output_Figs_micro_RNA = file.path(maindir, "Output","Figs", "hg38", "PDX", "RNA", "Microarray")
+```
+
+Make PCA & Hierarchical Clustering for HBCx10
+```{r}
+#Load Microarray samples 
+HBCx10_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_chemonaive_rawmat.csv"))
+HBCx10_AC = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_AC_rawmat.csv"))
+
+# Merge the matrices by techno 
+microarray_mat = merge(HBCx10_AC, HBCx10_chemonaive, by = "Symbol", all = F)
+
+#Use EdgeR to normalize
+matrice.edger = as.matrix(microarray_mat[,-c(1)])
+rownames(matrice.edger) = microarray_mat$Symbol
+colnames(matrice.edger)
+vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)))
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups[groups %in% c("chemonaive")] = "Untreated"
+groups = factor(groups)
+groups = fct_rev(groups)
+mm = model.matrix(~0 + groups)
+dge <- DGEList(counts=matrice.edger)
+dge <- normLibSizes(dge, method = "TMM")
+dge$samples
+logCPM <- cpm(dge,log=TRUE)
+
+#Select top 500 features
+rv = apply(logCPM, 1, var)
+o <- order(rv, decreasing=TRUE)
+top500 <- head(o, 500)
+logCPM = logCPM[top500,]
+
+matrice.pca = t(logCPM)
+res.pca = prcomp(matrice.pca)
+df_pca = factoextra::get_pca_ind(res.pca)
+df_pca = data.frame(df_pca$coord)
+df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
+df_pca$Sample = rownames(df_pca)
+df_pca$model = gsub("(HBCx.*)_.*","\\1", df_pca$Sample)
+df_pca$suffix = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
+df_pca$state = df_pca$suffix
+df_pca$state[df_pca$state %in% c("AC", "Capecitabin", "Carboplatin", "Cisplatin")] = "Persister"
+table(df_pca$state)
+df_pca$treatment = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
+df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabin"
+df_pca$treatment[df_pca$treatment == "Cispla"] = "Cisplatin"
+df_pca$treatment[df_pca$treatment == "Anthra"] = "AC"
+
+
+# Elbow plot -> Take nPCs = 2 for Hierarchical Clustering 
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx10_Elbowplot.pdf"), width = 7, height = 7)
+fviz_eig(res.pca, ncp = 20) + theme_classic()
+dev.off()
+
+#Hierarchical Clustering 
+xxx.pca1 <-prcomp(matrice.pca, rank. = 4) # stats::
+results <- xxx.pca1$x
+dm<-dist(results) 
+hc<-hclust(dm, method="ward.D2") # simple dendrogram
+plot(hc, hang=-1)
+rect.hclust(hc, k=2, border="red")
+cut_K2 <- cutree(hc, k = 2)
+df_pca$Cluster = as.factor(cut_K2)
+
+ggdendrogram(hc)
+dend <- as.dendrogram(hc)
+dend_data <- dendro_data(dend, type = "rectangle")
+dend_data$labels = merge(dend_data$labels, df_pca, by.x = "label", by.y = "Sample")
+
+
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx10_Statecolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = state)) + 
+  geom_point(size = 6, shape = 21, color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = AnnColor_State)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx10_Modelcolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = model)) + 
+  geom_point(size = 6, shape = 21, color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = AnnColor_Model)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx10_Treatmentcolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, shape = treatment)) + 
+  geom_point(size = 6,fill = "grey50", color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_shape_manual(values = AnnShape_treatment)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx10_Clustercolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, shape = Cluster)) +
+  geom_point(size = 6, alpha = 1, color = "black") + 
+  theme_classic() +
+  scale_shape_manual(values = AnnShape_Cluster) +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  theme(legend.position = "none")
+dev.off()
+
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx10_Dendrogramm.pdf"), width = 15, height = 15)
+ggplot(dend_data$segments) + 
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = dend_data$labels, aes(x, y, label = label, color = state), hjust = 1, angle = 90, size = 3) + 
+  ylim(-100, 350) + 
+  theme_void() + 
+   scale_color_manual(values = AnnColor_State) +
+  theme(legend.position = "none")
+dev.off()
+
+write.csv(df_pca, file.path(Output_Objects_micro_RNA, "DF_PCA_HBCx10.csv"), row.names = F)
+```
+
+Make PCA & Hierarchical Clustering for HBCx33
+```{r}
+#Load HBCx33 rawcount matrices
+HBCx33_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_chemonaive_rawmat.csv"))
+HBCx33_Cisplatin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Cisplatin_rawmat.csv"))
+HBCx33_Capecitabin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabin_rawmat.csv"))
+
+# Merge the matrices
+microarray_mat = merge(HBCx33_chemonaive, HBCx33_Cisplatin, by = "Symbol", all = F)
+microarray_mat = merge(microarray_mat, HBCx33_Capecitabin, by = "Symbol", all = F)
+
+#Use EdgeR to normalize
+matrice.edger = as.matrix(microarray_mat[,-c(1)])
+rownames(matrice.edger) = microarray_mat$Symbol
+colnames(matrice.edger)
+vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)))
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups[groups %in% c("chemonaive")] = "Untreated"
+groups = factor(groups)
+groups = fct_rev(groups)
+mm = model.matrix(~0 + groups)
+dge <- DGEList(counts=matrice.edger)
+dge <- normLibSizes(dge, method = "TMM")
+dge$samples
+logCPM <- cpm(dge,log=TRUE)
+
+#Select top 500 features
+rv = apply(logCPM, 1, var)
+o <- order(rv, decreasing=TRUE)
+top500 <- head(o, 500)
+logCPM = logCPM[top500,]
+
+matrice.pca = t(logCPM)
+res.pca = prcomp(matrice.pca)
+df_pca = factoextra::get_pca_ind(res.pca)
+df_pca = data.frame(df_pca$coord)
+df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
+df_pca$Sample = rownames(df_pca)
+df_pca$model = gsub("(HBCx.*)_.*","\\1", df_pca$Sample)
+df_pca$suffix = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
+df_pca$state = df_pca$suffix
+df_pca$state[df_pca$state %in% c("AC", "Capecitabin", "Carboplatin", "Cisplatin")] = "Persister"
+table(df_pca$state)
+df_pca$treatment = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
+df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabin"
+df_pca$treatment[df_pca$treatment == "Cispla"] = "Cisplatin"
+df_pca$treatment[df_pca$treatment == "Anthra"] = "AC"
+
+
+# Elbow plot -> Take nPCs = 2 for Hierarchical Clustering 
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx33_Elbowplot.pdf"), width = 7, height = 7)
+fviz_eig(res.pca, ncp = 20) + theme_classic()
+dev.off()
+
+#Hierarchical Clustering 
+xxx.pca1 <-prcomp(matrice.pca, rank. = 4) # stats::
+results <- xxx.pca1$x
+dm<-dist(results) 
+hc<-hclust(dm, method="ward.D2") # simple dendrogram
+plot(hc, hang=-1)
+rect.hclust(hc, k=2, border="red")
+cut_K2 <- cutree(hc, k = 2)
+df_pca$Cluster = as.factor(cut_K2)
+
+ggdendrogram(hc)
+dend <- as.dendrogram(hc)
+dend_data <- dendro_data(dend, type = "rectangle")
+dend_data$labels = merge(dend_data$labels, df_pca, by.x = "label", by.y = "Sample")
+
+
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx33_Statecolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = state)) + 
+  geom_point(size = 6, shape = 21, color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = AnnColor_State)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx33_Modelcolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = model)) + 
+  geom_point(size = 6, shape = 21, color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = AnnColor_Model)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx33_Treatmentcolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, shape = treatment)) + 
+  geom_point(size = 6,fill = "grey50", color = "black", alpha = 1) + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_shape_manual(values = AnnShape_treatment)+
+  theme(legend.position = "none")
+dev.off()
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx33_Clustercolored.pdf"), width = 7, height = 7)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, shape = Cluster)) +
+  geom_point(size = 6, alpha = 1, color = "black") + 
+  theme_classic() +
+  scale_shape_manual(values = AnnShape_Cluster) +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  theme(legend.position = "none")
+dev.off()
+
+
+pdf(file.path(Output_Figs_micro_RNA,"PCA_HBCx33_Dendrogramm.pdf"), width = 15, height = 15)
+ggplot(dend_data$segments) + 
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = dend_data$labels, aes(x, y, label = label, color = state), hjust = 1, angle = 90, size = 3) + 
+  ylim(-100, 350) + 
+  theme_void() + 
+   scale_color_manual(values = AnnColor_State) +
+  theme(legend.position = "none")
+dev.off()
+
+write.csv(df_pca, file.path(Output_Objects_micro_RNA, "DF_PCA_HBCx33.csv"), row.names = F)
+```

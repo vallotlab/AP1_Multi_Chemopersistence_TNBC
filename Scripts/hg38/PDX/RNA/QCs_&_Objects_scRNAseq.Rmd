@@ -1,0 +1,195 @@
+---
+title: "QCs_&_Objects_scRNAseq.Rmd"
+author: "Gregoire Jouault"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Initialisation of packages / functions / paths
+```{r, eval=FALSE}
+library(here)
+source(file.path(here(),"Scripts","global_var.R"))
+maindir = here()
+Input_sc_RNA = file.path(maindir, "Input", "hg38", "PDX", "RNA", "scRNAseq")
+Output_Objects_scRNA = file.path(maindir, "Output","Objects", "hg38", "PDX", "RNA", "scRNAseq")
+Output_Figs_scRNA = file.path(maindir, "Output","Figs", "hg38", "PDX", "RNA", "scRNAseq")
+```
+
+Function to filter out mm10 cells from PDX dataset
+```{r}
+remove_mm10_cells = function(
+    input_path,
+    output_path, 
+    sample
+    ) {
+  count.mat = readMM(file.path(input_path, "matrix.mtx.gz"))
+  feature.mat = read.table(file.path(input_path, "features.tsv.gz"))
+  barcode.mat = read.table(file.path(input_path, "barcodes.tsv.gz"))
+
+  rownames(count.mat) = make.names(feature.mat$V2, unique = T)
+  colnames(count.mat) = paste0(sample, "_",barcode.mat$V1)
+
+  scRNA = CreateSeuratObject(count.mat)
+  scRNA$HG38_percent = PercentageFeatureSet(scRNA, pattern = "GRCh38")
+  scRNA$MM10_percent = PercentageFeatureSet(scRNA, pattern = "mm10")
+  scRNA$HG38_count = PercentageFeatureSet(scRNA, pattern = "GRCh38")*scRNA$nCount_RNA/100
+  scRNA$MM10_count = PercentageFeatureSet(scRNA, pattern = "mm10")*scRNA$nCount_RNA/100
+  scRNA$sample = sample
+  scRNA$Cell_ID = rownames(scRNA@meta.data)
+  metadata = scRNA@meta.data
+  
+ 
+   #Filter to keep only hg38 genes and cells (if aligned on both genomes) -> Keep cells with 75% of genes coming from hg38
+  if (length(unique(metadata$HG38_count)) > 1){
+    print("Removing mm10 cells, with a threshold at 0.75")
+    percentage.hg38 = colSums2(count.mat[grep("GRCh38", rownames(count.mat)),])/colSums2(count.mat)
+    hg38.cells = which(percentage.hg38 > 0.75)
+    count.mat = count.mat[grep("GRCh38", rownames(count.mat)),hg38.cells]
+    rownames(count.mat) = gsub("GRCh38_", "",rownames(count.mat))
+  } else {
+    print("Not Removing mm10 cells as data was not aligned on mm10 genome")
+  }
+  
+  scRNA = CreateSeuratObject(count.mat, min.cells = 1, min.features = 1)
+  scRNA$sample = sample
+  scRNA$Cell_ID = rownames(scRNA@meta.data)
+  scRNA$log10GenesPerUMI <- log10(scRNA$nFeature_RNA) / log10(scRNA$nCount_RNA)
+  scRNA$MT_percent = PercentageFeatureSet(scRNA, pattern = "^MT.")
+  scRNA$ERCC_percent = PercentageFeatureSet(scRNA, pattern = "^ERCC")
+  scRNA$RB_percent = PercentageFeatureSet(scRNA, pattern = "^RP[SL][[:digit:]]|^RP[[:digit:]]|^RPSA")
+  metadata = scRNA@meta.data
+  
+  qs::qsave(scRNA, file.path(output_path, "Seurat_object_unfiltered_only_hg38.qs"))
+}
+```
+
+Filter out mm10 cells from PDX dataset
+```{r}
+for(sample in PDX_scRNA_samples) {
+  print(paste0("Filtering out mm10 cells & making seurat object for ", sample))
+  input_path = file.path(Input_sc_RNA,sample)
+  output_path = file.path(Output_Objects_scRNA, sample)
+  remove_mm10_cells(input_path = input_path, 
+                     output_path = output_path, 
+                     sample = sample)
+}
+```
+
+QCs parameters (nCount (min/max) / nFeatures (min/max) / MT% (max))
+```{r}
+
+QCs_param_list = list(
+  HBCx172_Capecitabin = c(2000,100000,2000,9000,25), 
+  HBCx172_chemonaive = c(2000,100000,2000,9000,25), 
+  HBCx218_AC = c(2000,100000,2000,9000,25),  
+  HBCx218_chemonaive = c(2000,100000,2000,9000,25),  
+  HBCx221_Capecitabin = c(2000,100000,2000,9000,25),  
+  HBCx221_chemonaive = c(2000,100000,2000,9000,25), 
+  HBCx39_Capecitabin = c(2000,100000,2000,9000,25),  
+  HBCx39_chemonaive = c(2000,100000,2000,9000,25),  
+  HBCx95_Capecitabin = c(2000,100000,2000,9000,25),  
+  HBCx95_chemonaive = c(2000,100000,2000,9000,25)
+)
+```
+
+Function to apply the predefined QCs to the samples and do a first normalisation & dim reduc to make first UMAPs
+```{r}
+Apply_QCs_and_make_plots = function(
+    sample, 
+    QCs_param, 
+    input_path, 
+    output_path
+){
+   print(paste0("Filtering & making seurat object for ", sample))
+  scRNA_unfiltered = qs::qread(file.path(input_path, "Seurat_object_unfiltered_only_hg38.qs"))
+  scRNA_filtered = subset(scRNA_unfiltered, subset = nCount_RNA > QCs_param[1] & nCount_RNA < QCs_param[2] & nFeature_RNA > QCs_param[3] & nFeature_RNA < QCs_param[4] & MT_percent < QCs_param[5])
+  
+  # Threshold to be able to use scDblFinder
+  if (dim(scRNA_filtered)[2] > 10) {
+  #Remove doublets using scDBlFinder 
+  scRNA_filtered = as.SingleCellExperiment(scRNA_filtered, assay = "RNA")
+  scRNA_filtered = scDblFinder::scDblFinder(scRNA_filtered)
+  scRNA_filtered = as.Seurat(scRNA_filtered, data = "counts")
+  scRNA_filtered = subset(scRNA_filtered, subset = scDblFinder.class == "singlet")
+
+  
+  scRNA_filtered = NormalizeData(scRNA_filtered) %>%
+  FindVariableFeatures() %>%
+  ScaleData() %>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30) 
+  gc()
+
+  metadata_filtered = scRNA_filtered@meta.data
+  metadata_filtered$sample = paste0("Filtered ", metadata_filtered$sample)
+  
+  metadata_unfiltered = scRNA_unfiltered@meta.data
+  metadata_unfiltered$sample = paste0("Unfiltered ", metadata_unfiltered$sample)
+  
+  qs::qsave(scRNA_filtered, file.path(output_path, "Seurat_object_filtered.qs"))
+  }
+}
+```
+
+Apply the QCs function to all the PDX samples 
+```{r}
+
+for(sample in PDX_scRNA_samples){
+  print(paste0("Making QCs & plots for sample ", sample))
+  input_path = file.path(Output_Objects_scRNA,sample)
+  output_path = file.path(Output_Objects_scRNA, sample)
+  QCs_param = QCs_param_list[[sample]]
+  Apply_QCs_and_make_plots(input_path = input_path, 
+                     output_path = output_path, 
+                     sample = sample, 
+                     QCs_param = QCs_param)
+}
+```
+
+Plot UMAPs with persister signature & State
+```{r}
+#Load DA table 
+top.table = read.csv(file.path(Output_Objects_CommonAnalysis, "Differential_Analysis_PDX.csv"))
+pers.signature = top.table %>% dplyr::slice_max(t, n = 100) %>% pull(Symbol)
+
+
+for(i in seq(1,length(PDX_scRNA_samples),2)) {
+  print(paste0("Loading the seurat object for samples ", PDX_scRNA_samples[i], " & ", PDX_scRNA_samples[i+1]))
+  seu.tmp.1 = qs::qread(file.path(Output_Objects_scRNA, PDX_scRNA_samples[i], "Seurat_object_filtered.qs"))
+  seu.tmp.2 = qs::qread(file.path(Output_Objects_scRNA, PDX_scRNA_samples[i+1], "Seurat_object_filtered.qs"))
+  seu = merge(seu.tmp.1, seu.tmp.2)
+  seu.umap2 = SCTransform(seu)%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+seu.umap2 = CellCycleScoring(seu.umap2, s.features = s.genes, g2m.features = g2m.genes)
+seu.umap2 = SCTransform(seu.umap2, vars.to.regress = c("S.Score", "G2M.Score"))%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+
+png(file.path(Output_Figs_scRNA, paste0("UMAP_", PDX_scRNA_samples[i], "_Sample_nolegend.png")), width = 1200, height = 1200, res = 300)
+print(DimPlot(seu.umap2, group.by = "sample", cols = c("chartreuse4", "grey10"), alpha = 0.6) + NoLegend())
+dev.off()
+
+seu.umap2 = AddModuleScore(seu.umap2, features = list(pers.signature), name = "persister.signature")
+
+png(file.path(Output_Figs_scRNA, paste0("UMAP_", PDX_scRNA_samples[i], "_Signature_nolegend.png")), width = 1200, height = 1200, res = 300)
+print(plot_density(seu.umap2, "persister.signature1", size = 1.5) + NoLegend())
+dev.off()
+
+png(file.path(Output_Figs_scRNA, paste0("UMAP_", PDX_scRNA_samples[i], "_Signature_withlegend.png")), width = 1200, height = 1200, res = 300)
+print(plot_density(seu.umap2, "persister.signature1", size = 1.5))
+dev.off()
+
+}
+dev.off()
+
+```
+
+
