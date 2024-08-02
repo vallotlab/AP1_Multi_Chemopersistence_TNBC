@@ -1,48 +1,122 @@
 # AP-1 drives a recurrent drug persister state in triple negative breast cancer 
 
-H3K27me3 is a determinant of chemotolerance in triple-negative breast cancer
-Scripts to analyze single-cell RNA, single-cell ChIP-seq and bulk ChIP-seq of TNBC under drug treatment. Follow the steps to reproduce the analysis in the paper 'H3K27me3 is a determinant of chemotolerance in triple-negative breast cancer' by Marsolier et al.
+Scripts to reproduce the analysis in the paper 'AP-1 drives a recurrent drug persister state in triple negative breast cancer' by Baudre et al.
 
 0.0 Setup
-In order to re-run the analysis from the paper you must first download this repository. Then, at the base of the repository, create an "output" and "input" empty folders. Download the processed data (e.g. count matrices & bigwig files) from GSEXXXXX, and place it in the "input" folder. In the "input" folder, each kind of data should be placed in a properly created directory (scRNAseq / scChIPseq / bulk_ChIPseq). The following hiearchy should be kept:
+In order to re-run the analysis from the paper you must first download this repository. Then, at the base of the repository. Download the processed data (e.g. count matrices) from GSEXXXXX / EGAXXXX, and place it in the "Input" folder. In the "Input" folder, each kind of data should be placed in the appropriate directory. The following hiearchy should be kept:
 
-input/
-├── bulk_ChIPseq
-│   ├── Human
-│   │   ├── BigWigs
-│   │   └── Count_Matrices
-│   ├── InVitro
-│   │   ├── bulk_ChIPseq
-│   │   │   ├── BigWigs
-│   │   │   └── Count_Matrices
-│   │   └── ChIPreChIP
-│   │       ├── BigWigs_Compare
-│   │       │   └── Raw
-│   │       ├── BigWigs_Coverage
-│   │       └── Peaks
-│   └── PDX
-│       └── ChIPreChIP
-│           ├── BigWigs_Compare
-│           │   └── Raw
-│           ├── BigWigs_Coverage
-│           └── Peaks
-├── scChIPseq
-│   ├── MM468
-│   │   ├── BigWigs
-│   │   ├── Count_Matrices
-│   │   └── Raw_Counts
-│   │       ├── K27
-│   │       └── K4
-│   └── PDX
-│       ├── BigWigs
-│       │   ├── HBCx95_m43_UNT_H3K27me3.bw
-│       │   └── HBCx95_m43_UNT_H3K4me3.bw
-│       └── Count_Matrices
-│           ├── HBCx95_m43_UNT_H3K27me3_TSS.tsv.gz
-│           └── HBCx95_m43_UNT_H3K4me3_TSS.tsv.gz
-└── scRNAseq
-    ├── MM468
-    └── PDX
+
+├── Annotations
+│   └── TFs_network_CollecTRI.csv
+├── Input
+│   └── hg38
+│       ├── Lignees
+│       │   ├── Bulk_CutTag
+│       │   └── scRNAseq
+│       └── PDX
+│           └── RNA
+│               ├── BulkRNAseq
+│               │   ├── HBCx14_AC_rawmat.csv
+│               │   ├── HBCx14_Carboplatin_rawmat.csv
+│               │   ├── HBCx14_Cisplatin_rawmat.csv
+│               │   └── HBCx14_chemonaive_rawmat.csv
+│               ├── Microarray
+│               │   ├── HBCx10_AC_rawmat.csv
+│               │   ├── HBCx10_chemonaive_rawmat.csv
+│               │   ├── HBCx33_Capecitabin_rawmat.csv
+│               │   ├── HBCx33_Cisplatin_rawmat.csv
+│               │   └── HBCx33_chemonaive_rawmat.csv
+│               └── scRNAseq
+│                   ├── HBCx172_Capecitabin
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   ├── HBCx172_chemonaive
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   ├── HBCx218_AC
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   ├── HBCx218_chemonaive
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   ├── HBCx221_Capecitabin
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   ├── HBCx221_chemonaive
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   ├── HBCx39_Capecitabin
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   ├── HBCx39_chemonaive
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   ├── HBCx95_Capecitabin
+│                   │   ├── barcodes.tsv.gz
+│                   │   ├── features.tsv.gz
+│                   │   ├── matrix.mtx.gz
+│                   └── HBCx95_chemonaive
+│                       ├── barcodes.tsv.gz
+│                       ├── features.tsv.gz
+│                       ├── matrix.mtx.gz
+├── Output
+│   ├── Figs
+│   │   └── hg38
+│   │       ├── Lignees
+│   │       │   ├── Bulk_CutTag
+│   │       │   └── scRNAseq
+│   │       └── PDX
+│   │           └── RNA
+│   │               ├── BulkRNAseq
+│   │               ├── Common_Analysis
+│   │               ├── Microarray
+│   │               └── scRNAseq
+│   └── Objects
+│       └── hg38
+│           ├── Lignees
+│           │   ├── Bulk_CutTag
+│           │   └── scRNAseq
+│           └── PDX
+│               └── RNA
+│                   ├── BulkRNAseq
+│                   ├── Common_Analysis
+│                   ├── Microarray
+│                   └── scRNAseq
+│                       ├── HBCx172_Capecitabin
+│                       ├── HBCx172_chemonaive
+│                       ├── HBCx218_AC
+│                       ├── HBCx218_chemonaive
+│                       ├── HBCx221_Capecitabin
+│                       ├── HBCx221_chemonaive
+│                       ├── HBCx39_Capecitabin
+│                       ├── HBCx39_chemonaive
+│                       ├── HBCx95_Capecitabin
+│                       └── HBCx95_chemonaive
+├── Scripts
+│   ├── global_var.R
+│   └── hg38
+│       ├── Lignees
+│       │   ├── Bulk_CutTag
+│       │   │   ├── Analysis.Rmd
+│       │   │   └── QCs_&_Objects.Rmd
+│       │   └── scRNAseq
+│       │       ├── Analysis.Rmd
+│       │       └── QCs_&_Objects.Rmd
+│       └── PDX
+│           └── RNA
+│               ├── Common_Analysis.Rmd
+│               ├── QCs_&_Objects_BulkRNAseq.Rmd
+│               ├── QCs_&_Objects_Microarray.Rmd
+│               └── QCs_&_Objects_scRNAseq.Rmd
+
 
 
     
