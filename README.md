@@ -125,7 +125,7 @@ All R packages used in the analysis are loaded by sourcing **_global_var.R_**. I
 
 ## 1.0 - PDX RNA Analysis
 
-For this Analysis, please start by running each of the 3 scripts **_QCs_&_Objects_***.Rmd_**, and then run **_Common_Analysis.Rmd_**. Scripts in this section mainly refers to what was used to produce _Fig.1_, _Fig.2_, _Supp.Fig.1_ & _Supp.Fig.2_ in the paper. 
+For this Analysis, please start by running each of the 3 scripts **_QCs_&_Objects_XXX.Rmd_**, and then run **_Common_Analysis.Rmd_**. Scripts in this section mainly refers to what was used to produce _Fig.1_, _Fig.2_, _Supp.Fig.1_ & _Supp.Fig.2_ in the paper. 
 
 ## 2.0 - Cell_lines scRNAseq Analysis 
 For this Analysis, please start by running the script **_QCs_&_Objects.Rmd_**, and then run **_Analysis.Rmd_**. Scripts in this section mainly refers to what was used to produce _Fig.3_, _Fig.5_, _Supp.Fig.3_ & _Supp.Fig.5_ in the paper. 
