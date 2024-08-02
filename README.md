@@ -10,7 +10,7 @@ In order to re-run the analysis from the paper you must first download this repo
 │   └── TFs_network_CollecTRI.csv
 ├── Input
 │   └── hg38
-│       ├── Lignees
+│       ├── Cell_lines
 │       │   ├── Bulk_CutTag
 │       │   └── scRNAseq
 │       └── PDX
@@ -70,7 +70,7 @@ In order to re-run the analysis from the paper you must first download this repo
 ├── Output
 │   ├── Figs
 │   │   └── hg38
-│   │       ├── Lignees
+│   │       ├── Cell_lines
 │   │       │   ├── Bulk_CutTag
 │   │       │   └── scRNAseq
 │   │       └── PDX
@@ -81,7 +81,7 @@ In order to re-run the analysis from the paper you must first download this repo
 │   │               └── scRNAseq
 │   └── Objects
 │       └── hg38
-│           ├── Lignees
+│           ├── Cell_lines
 │           │   ├── Bulk_CutTag
 │           │   └── scRNAseq
 │           └── PDX
@@ -118,30 +118,16 @@ In order to re-run the analysis from the paper you must first download this repo
 │               └── QCs_&_Objects_scRNAseq.Rmd
 
 
-
     
 Please refer to the scripts if you have doubts where you should place your input files.
 
-1.0 scRNA-seq
-PDX models
-Note that:
+##1.0 - PDX RNA Analysis
 
-BC976 stands for PDX_95/Patient_95
-BC408 stands for PDX_39/Patient_39
-BC1224 stands for PDX_172/Patient_172
-MDA-MB-468 model
-There are 3 sub-analyses in this directory: the main analysis ('1.Persister') and two sub analyses in response to epigenomic drug treatment ('2.UNC' and '3.UNC_5FU'). First run the 1.0 and 2.0 QC scripts. Then you can run the script of each analyses indepentently by respecting the order in each given analyses. Note that you must first run the single-cell ChIPseq analyse before running the script '5.0_ComparisonChIPseq.R'.
+For this Analysis, please start by running each of the 3 scripts "QCs_&_Objects_***.Rmd", and then run Common_Analysis.Rmd. Scripts in this section mainly refers to what was used to produce Fig.1, Fig.2, Supp.Fig.1 & Supp.Fig.2 in the paper. 
 
-2.0 scChIP-seq
-Run the scripts of H3K27me3 and H3K4me3 in any order.
+##2.0 - Cell_lines scRNAseq Analysis 
+For this Analysis, please start by running the script "QCs_&_Objects.Rmd", and then run Analysis.Rmd. Scripts in this section mainly refers to what was used to produce Fig.3, Fig.5, Supp.Fig.3 & Supp.Fig.5 in the paper. 
 
-3.0 ChIPreChIP (a.k.a. Sequential ChIP-seq)
-Run these scripts to retrieve bivalent genes as well as bivalent pathways.
+##3.0 - Cell_lines Bulk CUT&Tag Analysis 
+For this Analysis, please start by running the script "QCs_&_Objects.Rmd", and then run Analysis.Rmd. Scripts in this section mainly refers to what was used to produce Fig.3, Fig.5, Supp.Fig.3 & Supp.Fig.5 in the paper.
 
-4.0 bulk ChIPseq
-These scripts are mainly to produce snapshots of specific genes from the bigwigs.
-
-Additional Files:
-input/bulk_ChIPseq/MM468/chromatin_indexing_qc.csv -> ratios of Chromatin Indexing IP / input
-input/scChIPseq/MM468/Raw_Counts/ -> raw counts used to calculate FrIP for scChIP
-input/scChIPseq/MM468/BigWigs/ clusters C2 / C3 / C4 to produce Extened Figure 5h
