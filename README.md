@@ -121,6 +121,7 @@ In order to re-run the analysis from the paper you must first download this repo
 ```
     
 Please refer to the scripts if you have doubts where you should place your input files.
+All R packages used in the analysis are loaded by sourcing global_var.R. If you don't have them already installed on your laptop, please install them before running the analysis.
 
 ## 1.0 - PDX RNA Analysis
 
