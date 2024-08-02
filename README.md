@@ -1,12 +1,12 @@
 # AP-1 drives a recurrent drug persister state in triple negative breast cancer 
 
-Scripts to reproduce the analysis in the paper 'AP-1 drives a recurrent drug persister state in triple negative breast cancer' by Baudre et al.
+Scripts to reproduce the analysis in the paper **'AP-1 drives a recurrent drug persister state in triple negative breast cancer'** by _Baudre et al_.
 
 ## 0.0 Setup
 
 In order to re-run the analysis from the paper you must first download this repository. Then, at the base of the repository. Download the processed data (e.g. count matrices) from GSEXXXXX / EGAXXXX, and place it in the "Input" folder. In the "Input" folder, each kind of data should be placed in the appropriate directory. The following hiearchy should be kept:
 
- 
+```
 ├── Annotations
 │   └── TFs_network_CollecTRI.csv
 ├── Input
@@ -118,7 +118,7 @@ In order to re-run the analysis from the paper you must first download this repo
 │               ├── QCs_&_Objects_Microarray.Rmd
 │               └── QCs_&_Objects_scRNAseq.Rmd
 
-
+```
     
 Please refer to the scripts if you have doubts where you should place your input files.
 
