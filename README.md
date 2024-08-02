@@ -4,7 +4,7 @@ Scripts to reproduce the analysis in the paper **'AP-1 drives a recurrent drug p
 
 ## 0.0 Setup
 
-In order to re-run the analysis from the paper you must first download this repository. Then, at the base of the repository, download the processed data (e.g. count matrices) from GSEXXXXX / EGAXXXX, and place it in the "Input" folder. In the "Input" folder, each kind of data should be placed in the appropriate directory. The following hiearchy and naming should be kept:
+In order to re-run the analysis from the paper you must first download this repository. Then, at the base of the repository, download the processed data (e.g. count matrices) from GSEXXXXX / EGAXXXX, and place it in the **_Input_** folder. In the **_Input_** folder, each kind of data should be placed in the appropriate directory. The following hiearchy and naming should be kept:
 
 ```
 ├── Annotations
