@@ -121,15 +121,15 @@ In order to re-run the analysis from the paper you must first download this repo
 ```
     
 Please refer to the scripts if you have doubts where you should place your input files.
-All R packages used in the analysis are loaded by sourcing global_var.R. If you don't have them already installed on your laptop, please install them before running the analysis.
+All R packages used in the analysis are loaded by sourcing **_global_var.R_**. If you don't have them already installed on your laptop, please install them before running the analysis.
 
 ## 1.0 - PDX RNA Analysis
 
-For this Analysis, please start by running each of the 3 scripts "QCs_&_Objects_***.Rmd", and then run Common_Analysis.Rmd. Scripts in this section mainly refers to what was used to produce Fig.1, Fig.2, Supp.Fig.1 & Supp.Fig.2 in the paper. 
+For this Analysis, please start by running each of the 3 scripts **_QCs_&_Objects_***.Rmd_**, and then run **_Common_Analysis.Rmd_**. Scripts in this section mainly refers to what was used to produce _Fig.1_, _Fig.2_, _Supp.Fig.1_ & _Supp.Fig.2_ in the paper. 
 
 ## 2.0 - Cell_lines scRNAseq Analysis 
-For this Analysis, please start by running the script "QCs_&_Objects.Rmd", and then run Analysis.Rmd. Scripts in this section mainly refers to what was used to produce Fig.3, Fig.5, Supp.Fig.3 & Supp.Fig.5 in the paper. 
+For this Analysis, please start by running the script **_QCs_&_Objects.Rmd_**, and then run **_Analysis.Rmd_**. Scripts in this section mainly refers to what was used to produce _Fig.3_, _Fig.5_, _Supp.Fig.3_ & _Supp.Fig.5_ in the paper. 
 
 ## 3.0 - Cell_lines Bulk CUT&Tag Analysis 
-For this Analysis, please start by running the script "QCs_&_Objects.Rmd", and then run Analysis.Rmd. Scripts in this section mainly refers to what was used to produce Fig.3, Fig.5, Supp.Fig.3 & Supp.Fig.5 in the paper.
+For this Analysis, please start by running the script **_QCs_&_Objects.Rmd_**, and then run **_Analysis.Rmd_**. Scripts in this section mainly refers to what was used to produce _Fig.3_, _Fig.5_, _Supp.Fig.3_ & _Supp.Fig.5_ in the paper.
 
