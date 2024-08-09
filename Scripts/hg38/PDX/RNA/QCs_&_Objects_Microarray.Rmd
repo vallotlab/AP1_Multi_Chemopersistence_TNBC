@@ -30,8 +30,8 @@ matrice.edger = as.matrix(microarray_mat[,-c(1)])
 rownames(matrice.edger) = microarray_mat$Symbol
 colnames(matrice.edger)
 vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)))
-groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
-groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabine|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabine")] = "Persister"
 groups[groups %in% c("chemonaive")] = "Untreated"
 groups = factor(groups)
 groups = fct_rev(groups)
@@ -54,12 +54,12 @@ df_pca = data.frame(df_pca$coord)
 df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
 df_pca$Sample = rownames(df_pca)
 df_pca$model = gsub("(HBCx.*)_.*","\\1", df_pca$Sample)
-df_pca$suffix = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
+df_pca$suffix = gsub("HBCx.*(AC|Capecitabine|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
 df_pca$state = df_pca$suffix
-df_pca$state[df_pca$state %in% c("AC", "Capecitabin", "Carboplatin", "Cisplatin")] = "Persister"
+df_pca$state[df_pca$state %in% c("AC", "Capecitabine", "Carboplatin", "Cisplatin")] = "Persister"
 table(df_pca$state)
-df_pca$treatment = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
-df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabin"
+df_pca$treatment = gsub("HBCx.*(AC|Capecitabine|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
+df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabine"
 df_pca$treatment[df_pca$treatment == "Cispla"] = "Cisplatin"
 df_pca$treatment[df_pca$treatment == "Anthra"] = "AC"
 
@@ -153,19 +153,19 @@ Make PCA & Hierarchical Clustering for HBCx33
 #Load HBCx33 rawcount matrices
 HBCx33_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_chemonaive_rawmat.csv"))
 HBCx33_Cisplatin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Cisplatin_rawmat.csv"))
-HBCx33_Capecitabin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabin_rawmat.csv"))
+HBCx33_Capecitabine = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabine_rawmat.csv"))
 
 # Merge the matrices
 microarray_mat = merge(HBCx33_chemonaive, HBCx33_Cisplatin, by = "Symbol", all = F)
-microarray_mat = merge(microarray_mat, HBCx33_Capecitabin, by = "Symbol", all = F)
+microarray_mat = merge(microarray_mat, HBCx33_Capecitabine, by = "Symbol", all = F)
 
 #Use EdgeR to normalize
 matrice.edger = as.matrix(microarray_mat[,-c(1)])
 rownames(matrice.edger) = microarray_mat$Symbol
 colnames(matrice.edger)
 vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)))
-groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
-groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabine|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabine")] = "Persister"
 groups[groups %in% c("chemonaive")] = "Untreated"
 groups = factor(groups)
 groups = fct_rev(groups)
@@ -188,12 +188,12 @@ df_pca = data.frame(df_pca$coord)
 df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
 df_pca$Sample = rownames(df_pca)
 df_pca$model = gsub("(HBCx.*)_.*","\\1", df_pca$Sample)
-df_pca$suffix = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
+df_pca$suffix = gsub("HBCx.*(AC|Capecitabine|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
 df_pca$state = df_pca$suffix
-df_pca$state[df_pca$state %in% c("AC", "Capecitabin", "Carboplatin", "Cisplatin")] = "Persister"
+df_pca$state[df_pca$state %in% c("AC", "Capecitabine", "Carboplatin", "Cisplatin")] = "Persister"
 table(df_pca$state)
-df_pca$treatment = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
-df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabin"
+df_pca$treatment = gsub("HBCx.*(AC|Capecitabine|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
+df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabine"
 df_pca$treatment[df_pca$treatment == "Cispla"] = "Cisplatin"
 df_pca$treatment[df_pca$treatment == "Anthra"] = "AC"
 

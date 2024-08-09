@@ -2,5 +2,207 @@
 title: "QCs_&_Objects.Rmd"
 author: "Gregoire Jouault"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
+Initialisation of packages / functions / paths
+```{r, eval=FALSE}
+library(here)
+source(file.path(here(),"Scripts","global_var.R"))
+maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Chemopersistance_2/")
+maindir = here()
+# maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1")
+Input_raw_sc_RNA = file.path(maindir, "Output", "Objects", "hg38", "Cell_lines", "scRNAseq")
+Output_Objects_sc_RNA = file.path(maindir, "Output", "Objects", "hg38", "Cell_lines", "scRNAseq")
+Output_Figs_sc_RNA = file.path(maindir, "Output", "Figs", "hg38", "hg38", "Cell_lines", "scRNAseq")
+Annotations = file.path(maindir, "Annotations")
+Peaks_indiv = file.path(Annotations, "Peaks_Individual")
+Peaks_common = file.path(Annotations, "Peaks_Common")
+Bams_path = file.path(maindir, "Input", "hg38", "Cell_lines","Bulk_CutTag", "BAM")
+Output_Objects_BulkCutTag = file.path(maindir, "Output", "Objects", "hg38", "Cell_lines", "Bulk_CutTag")
+```
+
+Create Common Peaks Set 
+```{r}
+#FOSL1 Common 
+list_bedfiles = list.files(Peaks_indiv, pattern = "FOSL1", full.names = T)
+mPeak = GRanges()
+
+for(file in list_bedfiles){
+    peakRes = read.table(file.path(file), header = FALSE, fill = TRUE)
+    mPeak = GRanges(seqnames = peakRes$V1, IRanges(start = peakRes$V2, end = peakRes$V3), strand = "*") %>% append(mPeak, .)
+}
+masterPeak = reduce(mPeak)
+plyranges::write_bed(masterPeak,file.path(Peaks_common, "Peaks_MACS2_Common_FOSL1.bed"))
+
+
+#H3K27ac Common 
+list_bedfiles = list.files(Peaks_indiv, pattern = "H3K27ac", full.names = T)
+mPeak = GRanges()
+
+for(file in list_bedfiles){
+    peakRes = read.table(file.path(file), header = FALSE, fill = TRUE)
+    mPeak = GRanges(seqnames = peakRes$V1, IRanges(start = peakRes$V2, end = peakRes$V3), strand = "*") %>% append(mPeak, .)
+}
+masterPeak = reduce(mPeak)
+plyranges::write_bed(masterPeak,file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac.bed"))
+
+
+#H3K27ac & FOSL1 Common 
+list_bedfiles = list.files(Peaks_indiv, pattern = "H3K27ac|FOSL1", full.names = T)
+mPeak = GRanges()
+
+for(file in list_bedfiles){
+    peakRes = read.table(file.path(file), header = FALSE, fill = TRUE)
+    mPeak = GRanges(seqnames = peakRes$V1, IRanges(start = peakRes$V2, end = peakRes$V3), strand = "*") %>% append(mPeak, .)
+}
+masterPeak = reduce(mPeak)
+plyranges::write_bed(masterPeak,file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac_&_FOSL1.bed"))
+
+
+```
+
+Create matrix for H3K27ac samples on H3K27ac peaks
+```{r}
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+#Get the fragment counts for each peak in the master peak list
+list_bamfiles = list.files(file.path(Bams_path), pattern = "K27ac", full.names = F)
+list_bamfiles = list_bamfiles[grep(".bai", list_bamfiles, invert = T)] 
+countMat = matrix(NA, length(masterPeak), length(list_bamfiles))
+
+i = 1
+for(file in list_bamfiles){
+  fragment_counts <-chromVAR::getCounts(file.path(Bam_path, file), masterPeak, paired = TRUE, by_rg = FALSE, format = "bam")
+  countMat[, i] = counts(fragment_counts)[,1]
+  i = i + 1
+}
+
+# list_bamfiles
+colnames_mat = c("MM468_5FU_n1_H3K27ac","MM468_WT_n1_H3K27ac","MM468_GOF_n1_H3K27ac","MM468_GOF_n2_H3K27ac","MM468_GOF_n3_H3K27ac", "MM468_5FU_n2_H3K27ac","MM468_5FU_n3_H3K27ac", "MM468_WT_n2_H3K27ac","MM468_WT_n3_H3K27ac")
+colnames(countMat) = colnames_mat
+rownames(countMat) = masterPeak$peak_loca
+
+# Save the matrix of counts 
+qs::qsave(countMat, file.path(Output_Objects_BulkCutTag, "countMat_MM468_5FU_WT_GOF_H3K27ac_H3K27acpeaks.qs"))
+
+
+```
+
+Create matrix for H3K27ac samples on Common H3K27ac & FOSL1 peaks
+```{r}
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac_&_FOSL1.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+#Get the fragment counts for each peak in the master peak list
+list_bamfiles = list.files(file.path(Bams_path), pattern = "K27ac", full.names = F)
+list_bamfiles = list_bamfiles[grep(".bai", list_bamfiles, invert = T)] 
+countMat = matrix(NA, length(masterPeak), length(list_bamfiles))
+
+i = 1
+for(file in list_bamfiles){
+  fragment_counts <-chromVAR::getCounts(file.path(Bam_path, file), masterPeak, paired = TRUE, by_rg = FALSE, format = "bam")
+  countMat[, i] = counts(fragment_counts)[,1]
+  i = i + 1
+}
+
+# list_bamfiles
+colnames_mat = c("MM468_5FU_n1_H3K27ac","MM468_WT_n1_H3K27ac","MM468_GOF_n1_H3K27ac","MM468_GOF_n2_H3K27ac","MM468_GOF_n3_H3K27ac", "MM468_5FU_n2_H3K27ac","MM468_5FU_n3_H3K27ac", "MM468_WT_n2_H3K27ac","MM468_WT_n3_H3K27ac")
+colnames(countMat) = colnames_mat
+rownames(countMat) = masterPeak$peak_loca
+
+# Save the matrix of counts 
+qs::qsave(countMat, file.path(Output_Objects_BulkCutTag, "countMat_MM468_5FU_WT_GOF_H3K27ac_Commonpeaks.qs"))
+
+
+```
+
+Create matrix for FOSL1 samples on FOSL1 peaks
+```{r}
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_FOSL1.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+#Get the fragment counts for each peak in the master peak list
+list_bamfiles = list.files(file.path(Bams_path), pattern = "FOSL1|pcr", full.names = F)
+list_bamfiles = list_bamfiles[grep("H3K27", list_bamfiles, invert = T)] 
+list_bamfiles = list_bamfiles[grep(".bai", list_bamfiles, invert = T)] 
+countMat = matrix(NA, length(masterPeak), length(list_bamfiles))
+
+i = 1
+for(file in list_bamfiles){
+  fragment_counts <-chromVAR::getCounts(file.path(Bam_path, file), masterPeak, paired = TRUE, by_rg = FALSE, format = "bam")
+  countMat[, i] = counts(fragment_counts)[,1]
+  i = i + 1
+}
+
+colnames_mat = c("MM468_GOF_n1_FOSL1","MM468_GOF_n2_FOSL1","MM468_GOF_n3_FOSL1","MM468_GOFctrl_n1_FOSL1","MM468_GOFctrl_n2_FOSL1","MM468_GOFctrl_n3_FOSL1","MM468_VPRctrl_n1_FOSL1","MM468_VPR_n1_FOSL1","MM468_5FU_n1_FOSL1","MM468_5FU_n2_FOSL1","MM468_5FU_n3_FOSL1","MM468_WT_n1_FOSL1",  "MM468_WT_n2_FOSL1","MM468_WT_n3_FOSL1")
+colnames(countMat) = colnames_mat
+rownames(countMat) = masterPeak$peak_loca
+
+# Save the matrix of counts 
+qs::qsave(countMat, file.path(Output_Objects_BulkCutTag, "countMat_MM468_5FU_WT_VPR_GOF_VPRctrl_GOFctrl_FOSL1_FOSL1peaks.qs"))
+
+
+```
+
+Create matrix for FOSL1 samples on Common H3K27ac & FOSL1 peaks
+```{r}
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac_&_FOSL1.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+#Get the fragment counts for each peak in the master peak list
+list_bamfiles = list.files(file.path(Bams_path), pattern = "FOSL1|pcr", full.names = F)
+list_bamfiles = list_bamfiles[grep("H3K27", list_bamfiles, invert = T)] 
+list_bamfiles = list_bamfiles[grep(".bai", list_bamfiles, invert = T)] 
+countMat = matrix(NA, length(masterPeak), length(list_bamfiles))
+
+i = 1
+for(file in list_bamfiles){
+  fragment_counts <-chromVAR::getCounts(file.path(Bam_path, file), masterPeak, paired = TRUE, by_rg = FALSE, format = "bam")
+  countMat[, i] = counts(fragment_counts)[,1]
+  i = i + 1
+}
+
+colnames_mat = c("MM468_GOF_n1_FOSL1","MM468_GOF_n2_FOSL1","MM468_GOF_n3_FOSL1","MM468_GOFctrl_n1_FOSL1","MM468_GOFctrl_n2_FOSL1","MM468_GOFctrl_n3_FOSL1","MM468_VPRctrl_n1_FOSL1","MM468_VPR_n1_FOSL1","MM468_5FU_n1_FOSL1","MM468_5FU_n2_FOSL1","MM468_5FU_n3_FOSL1","MM468_WT_n1_FOSL1",  "MM468_WT_n2_FOSL1","MM468_WT_n3_FOSL1")
+colnames(countMat) = colnames_mat
+rownames(countMat) = masterPeak$peak_loca
+
+# Save the matrix of counts 
+qs::qsave(countMat, file.path(Output_Objects_BulkCutTag, "countMat_MM468_5FU_WT_VPR_GOF_VPRctrl_GOFctrl_FOSL1_Commonpeaks.qs"))
+
+
+```
+
+Create matrix for FOSL1 & H3K27ac samples on Common H3K27ac & FOSL1 peaks
+```{r}
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac_&_FOSL1.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+#Get the fragment counts for each peak in the master peak list
+list_bamfiles = list.files(file.path(Bams_path), full.names = F)
+list_bamfiles = list_bamfiles[grep(".bai", list_bamfiles, invert = T)] 
+countMat = matrix(NA, length(masterPeak), length(list_bamfiles))
+
+i = 1
+for(file in list_bamfiles){
+  fragment_counts <-chromVAR::getCounts(file.path(Bam_path, file), masterPeak, paired = TRUE, by_rg = FALSE, format = "bam")
+  countMat[, i] = counts(fragment_counts)[,1]
+  i = i + 1
+}
+
+colnames_mat = c("MM468_5FU_n1_H3K27ac","MM468_WT_n1_H3K27ac","MM468_GOF_n1_FOSL1","MM468_GOF_n1_H3K27ac","MM468_GOF_n2_H3K27ac","MM468_GOF_n2_FOSL1","MM468_GOF_n3_H3K27ac","MM468_GOF_n3_FOSL1","MM468_GOFctrl_n1_FOSL1","MM468_GOFctrl_n2_FOSL1","MM468_GOFctrl_n3_FOSL1","MM468_VPRctrl_n1_FOSL1","MM468_VPR_n1_FOSL1","MM468_5FU_n1_FOSL1","MM468_5FU_n2_FOSL1","MM468_5FU_n2_H3K27ac","MM468_5FU_n3_FOSL1","MM468_5FU_n3_H3K27ac","MM468_WT_n1_FOSL1",  "MM468_WT_n2_FOSL1","MM468_WT_n2_H3K27ac","MM468_WT_n3_FOSL1","MM468_WT_n3_H3K27ac")
+colnames(countMat) = colnames_mat
+rownames(countMat) = masterPeak$peak_loca
+
+# Save the matrix of counts 
+qs::qsave(countMat, file.path(Output_Objects_BulkCutTag, "countMat_MM468_Allsamples_Commonpeaks.qs"))
+
+
+```

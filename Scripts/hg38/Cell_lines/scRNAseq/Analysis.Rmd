@@ -2,4 +2,264 @@
 title: "Analysis.Rmd"
 author: "Gregoire Jouault"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
+
+Initialisation of packages / functions / paths
+```{r, eval=FALSE}
+library(here)
+source(file.path(here(),"Scripts","global_var.R"))
+maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Chemopersistance_2/")
+maindir = here()
+# maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1")
+Input_raw_sc_RNA = file.path(maindir, "Input","hg38", "Cell_lines", "scRNAseq")
+Output_Objects_sc_RNA = file.path(maindir, "Output", "Objects", "hg38", "Cell_lines", "scRNAseq")
+Output_Figs_sc_RNA = file.path(maindir, "Output", "Figs", "hg38", "Cell_lines", "scRNAseq")
+```
+
+UMAP & DA for HCC38
+```{r}
+HCC38_chemonaive = qs::qread(file.path(Output_Objects_sc_RNA, "HCC38_chemonaive_Seuratobject_filtered.qs"))
+HCC38_persister = qs::qread(file.path(Output_Objects_sc_RNA, "HCC38_persister_Seuratobject_filtered.qs"))
+seu_HCC38 = merge(HCC38_chemonaive, HCC38_persister)
+
+seu_HCC38 = SCTransform(seu_HCC38)%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+seu_HCC38 = CellCycleScoring(seu_HCC38,s.features = s.genes, g2m.features = g2m.genes)
+print(DimPlot(seu_HCC38, group.by = "Phase"))
+
+seu_HCC38 = SCTransform(seu_HCC38, vars.to.regress = c("S.Score", "G2M.Score"))%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+
+   png(file.path(Output_Figs_sc_RNA, "UMAP_HCC38.png"), res = 400, width = 2000, height = 2000)
+ DimPlot(seu_HCC38, group.by = "sample", cols = c("grey10","chartreuse4")) + NoLegend()
+  dev.off()
+
+  qs::qsave(seu_HCC38, file.path(Output_Objects_sc_RNA, "HCC38_common_Seuratobject.qs"))
+
+  Idents(seu_HCC38) <- "sample"
+  da_HCC38 = FindMarkers(seu_HCC38, ident.1 = "HCC38_persister", ident.2 = "HCC38_chemonaive", logfc.threshold = -Inf)
+  da_HCC38$Symbol = rownames(da_HCC38)
+  da_HCC38$p_val_adj[da_HCC38$p_val_adj == 0] = 1e-307
+  da_HCC38$t_value = da_HCC38$avg_log2FC * -log10(da_HCC38$p_val_adj)
+  
+  write.csv(da_HCC38, file.path(Output_Objects_sc_RNA, "DA_HCC38.csv"), row.names = F)
+
+```
+
+UMAP & DA for BT20
+```{r}
+BT20_chemonaive = qs::qread(file.path(Output_Objects_sc_RNA, "BT20_chemonaive_Seuratobject_filtered.qs"))
+BT20_persister = qs::qread(file.path(Output_Objects_sc_RNA, "BT20_persister_Seuratobject_filtered.qs"))
+seu_BT20 = merge(BT20_chemonaive, BT20_persister)
+
+seu_BT20 = SCTransform(seu_BT20)%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+seu_BT20 = CellCycleScoring(seu_BT20,s.features = s.genes, g2m.features = g2m.genes)
+print(DimPlot(seu_BT20, group.by = "Phase"))
+
+seu_BT20 = SCTransform(seu_BT20, vars.to.regress = c("S.Score", "G2M.Score"))%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+
+   png(file.path(Output_Figs_sc_RNA, "UMAP_BT20.png"), res = 400, width = 2000, height = 2000)
+ DimPlot(seu_BT20, group.by = "sample", cols = c("grey10","chartreuse4")) + NoLegend()
+  dev.off()
+
+  qs::qsave(seu_BT20, file.path(Output_Objects_sc_RNA, "BT20_common_Seuratobject.qs"))
+
+  Idents(seu_BT20) <- "sample"
+  da_BT20 = FindMarkers(seu_BT20, ident.1 = "BT20_persister", ident.2 = "BT20_chemonaive", logfc.threshold = -Inf)
+  da_BT20$Symbol = rownames(da_BT20)
+  da_BT20$p_val_adj[da_BT20$p_val_adj == 0] = 1e-307
+  da_BT20$t_value = da_BT20$avg_log2FC * -log10(da_BT20$p_val_adj)
+  
+  write.csv(da_BT20, file.path(Output_Objects_sc_RNA, "DA_BT20.csv"), row.names = F)
+
+```
+
+UMAP & DA for MM468
+```{r}
+MM468_chemonaive = qs::qread(file.path(Output_Objects_sc_RNA, "MM468_chemonaive_Seuratobject_filtered.qs"))
+MM468_persister = qs::qread(file.path(Output_Objects_sc_RNA, "MM468_persister_Seuratobject_filtered.qs"))
+seu_MM468 = merge(MM468_chemonaive, MM468_persister)
+
+seu_MM468 = SCTransform(seu_MM468)%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+seu_MM468 = CellCycleScoring(seu_MM468,s.features = s.genes, g2m.features = g2m.genes)
+print(DimPlot(seu_MM468, group.by = "Phase"))
+
+
+   png(file.path(Output_Figs_sc_RNA, "UMAP_MM468.png"), res = 400, width = 2000, height = 2000)
+ DimPlot(seu_MM468, group.by = "sample", cols = c("grey10","chartreuse4")) + NoLegend()
+  dev.off()
+
+  qs::qsave(seu_MM468, file.path(Output_Objects_sc_RNA, "MM468_common_Seuratobject.qs"))
+
+  Idents(seu_MM468) <- "sample"
+  da_MM468 = FindMarkers(seu_MM468, ident.1 = "MM468_persister", ident.2 = "MM468_chemonaive", logfc.threshold = -Inf)
+  da_MM468$Symbol = rownames(da_MM468)
+  da_MM468$p_val_adj[da_MM468$p_val_adj == 0] = 1e-307
+  da_MM468$t_value = da_MM468$avg_log2FC * -log10(da_MM468$p_val_adj)
+  
+  write.csv(da_MM468, file.path(Output_Objects_sc_RNA, "DA_MM468_persister.csv"), row.names = F)
+```
+
+Fig 3.A : TF prediction only on MM468
+```{r}
+#Load DA table 
+top.table = read.csv(file.path(Output_Objects_sc_RNA, "DA_MM468_persister.csv"))
+
+#Load TF CollecTRI network
+net = read.csv(file.path(Annotations, "TFs_network_CollecTRI.csv"))
+
+# TF_enrichment 
+rownames(top.table) = top.table$Symbol
+deg = top.table %>% dplyr::select(t_value)
+contrast_acts <- decouple(mat=deg, net=net, .source='source', .target='target',minsize = 5, statistics = c("ulm", "wsum", "mlm"), consensus_score = T, args = list(wsum = list(seed = 1, times = 5000)))
+contrast_acts_consensus = contrast_acts %>% dplyr::filter(statistic == "consensus")
+contrast_acts_consensus = mutate(contrast_acts_consensus, ranking = rank(desc(score), ties.method = "first"))
+ 
+write.csv(contrast_acts_consensus, file.path(Output_Objects_sc_RNA, "TFenrichment_MM468_persister.csv"), quote = F, row.names = F)
+
+
+pdf(file.path(Output_Figs_sc_RNA,"TFenrichment_MM468_persister.pdf"), width = 10,height = 10)
+contrast_acts_consensus %>%
+  dplyr::filter(score > 0) %>%
+  ggplot(aes(x = ranking, y = score, color = ranking < 11)) +
+  geom_point() +
+  theme_classic() +
+    ggrepel::geom_text_repel(data = dplyr::filter(contrast_acts_consensus, ranking < 11), aes(label = source), max.overlaps = 50, color = "black", size = 6)+
+  scale_color_manual(values = c("grey20","tomato")) +
+  theme(legend.position = "none")
+dev.off()
+```
+
+UMAP & DA for MM468 - GOF
+```{r}
+
+MM468_GOF = qs::qread(file.path(Output_Objects_sc_RNA, "MM468_GOF_Seuratobject_filtered.qs"))
+
+MM468_GOF = SCTransform(MM468_GOF)%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+MM468_GOF = CellCycleScoring(MM468_GOF,s.features = s.genes, g2m.features = g2m.genes)
+print(DimPlot(MM468_GOF, group.by = "Phase"))
+
+MM468_GOF = SCTransform(MM468_GOF, vars.to.regress = c("S.Score", "G2M.Score"))%>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>%
+  RunUMAP(dims = 1:30)
+
+   png(file.path(Output_Figs_sc_RNA, "UMAP_MM468_GOF.png"), res = 400, width = 2000, height = 2000)
+ print(DimPlot(MM468_GOF, group.by = "sample", cols = c("grey70","#FF82AB","grey70","pink","pink")) + NoLegend())
+  dev.off()
+  
+   png(file.path(Output_Figs_sc_RNA, "UMAP_MM468_GOF_FOSL1expr.png"), res = 400, width = 2000, height = 2000)
+ print(plot_density(MM468_GOF, "FOSL1", size = 1.5) + NoLegend())
+  dev.off()
+  
+   png(file.path(Output_Figs_sc_RNA, "UMAP_MM468_GOF_KRT14expr.png"), res = 400, width = 2000, height = 2000)
+ print(plot_density(MM468_GOF, "KRT14", size = 1.5) + NoLegend())
+  dev.off()
+
+  #Load DA table 
+  top.table = read.csv(file.path(Output_Objects_sc_RNA, "DA_MM468_persister.csv"))
+  features_sign = top.table %>% dplyr::slice_max(t_value, n = 30) %>% pull(Symbol)
+  features_sign = list(features_sign)
+  MM468_GOF <- UCell::AddModuleScore_UCell(MM468_GOF, features=features_sign, name="Pers.signature.Ucell")
+Nebulosa::plot_density(MM468_GOF, "signature_1Pers.signature.Ucell", size = 1.5) + NoLegend()
+  
+  
+ png(file.path(Output_Figs_sc_RNA, "UMAP_MM468_GOF_perssignature.png"), res = 400, width = 2000, height = 2000)
+print(plot_density(MM468_GOF, "signature_1Pers.signature.Ucell", size = 1.5) + NoLegend())
+dev.off()
+  
+  qs::qsave(MM468_GOF, file.path(Output_Objects_sc_RNA, "MM468_GOF_common_Seuratobject.qs"))
+
+
+  Idents(MM468_GOF) <- "sample"
+  da_MM468 = FindMarkers(MM468_GOF, ident.1 = c("GOF_FOSL1","VPR_FOSL1_gRNA2","VPR_FOSL1_gRNA3"), ident.2 = c("VPR_controle","GOF_controle"), logfc.threshold = -Inf)
+  da_MM468$Symbol = rownames(da_MM468)
+  da_MM468$p_val_adj[da_MM468$p_val_adj == 0] = 1e-307
+  da_MM468$t_value = da_MM468$avg_log2FC * -log10(da_MM468$p_val_adj)
+  
+  write.csv(da_MM468, file.path(Output_Objects_sc_RNA, "DA_MM468_GOF.csv"), row.names = F)
+
+  
+```
+
+GOF & 5FU Analysis 
+```{r}
+###### Correlation between 5FU & GOF Transcriptome ######
+
+da_5FU = read.csv(file.path(Output_Objects_sc_RNA, "DA_MM468_persister.csv"))
+da_GOF = read.csv(file.path(Output_Objects_sc_RNA, "DA_MM468_GOF.csv"))
+
+
+#Merge the two da and make correlation plot 
+da_general = merge(da_5FU, da_GOF, by = "Symbol")
+da_general$density = get_density(da_general$avg_log2FC.x, da_general$avg_log2FC.y, n = 500)
+
+png(file.path(Output_Figs_sc_RNA,"Correlation_transcriptome_5FU_&_GOF.png"), width = 2000, height = 2000, res = 400)
+
+da_general %>% 
+  ggplot(aes(x = avg_log2FC.x, y = avg_log2FC.y, color = density)) + 
+  geom_point() +
+  stat_cor() +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype="dashed") +
+  geom_vline(xintercept = 0, linetype="dashed") + 
+  scale_color_viridis()+
+  theme_classic() +
+  theme(legend.position = "none") + 
+  xlab("Log2FC 5FU vs Ctrl") + 
+  ylab("Log2FC GOF vs Ctrl")
+
+dev.off()
+
+###### FOSL1 expr & Persister signature ######
+
+MM468_GOF$FOSL1_expr_norm = FetchData(MM468_GOF, vars = "FOSL1", layer = "data") 
+metadata = MM468_GOF@meta.data
+metadata = metadata %>% mutate(FOSL1_status = case_when(FOSL1_expr_norm < 1 ~ "Low", FOSL1_expr_norm > 1 & FOSL1_expr_norm < 2 ~ "Mid", FOSL1_expr_norm > 2 ~ "High"))
+metadata$FOSL1_status = factor(metadata$FOSL1_status, levels = c("Low", "Mid", "High"))
+my_comparisons = list(c("Low", "Mid"), c("Mid", "High"), c("Low", "High"))
+
+pdf(file.path(Output_Figs_sc_RNA, "Persister_signature_FOSL1status.pdf"))
+metadata %>%  ggplot(aes(x = FOSL1_status, y = signature_1Pers.signature.Ucell, fill = FOSL1_status)) + geom_boxplot(outliers = F) + theme_classic() + stat_compare_means(comparisons = my_comparisons, method = "t.test", label = "p.signif") + scale_fill_manual(values = c("#FFD9E5","pink", "#FF82AB")) + theme(legend.position = "none")
+dev.off()
+
+
+df_barplot = metadata %>% group_by(Assignment, FOSL1_status) %>% summarise(n = n()) %>% group_by(FOSL1_status) %>% mutate(n_percentage = n/sum(n))
+df_barplot$Assignment = factor(df_barplot$Assignment, levels = c("GOF_controle", "VPR_controle", "VPR_FOSL1_gRNA2", "VPR_FOSL1_gRNA3", "GOF_FOSL1"))
+
+pdf(file.path(Output_Figs_sc_RNA, "Persister_signature_FOSL1status_barplot.pdf"))
+df_barplot %>% ggplot(aes(x = FOSL1_status, y = n_percentage, fill = Assignment)) + geom_bar(stat = "identity") + scale_fill_manual(values = c("grey60", "grey60", "pink", "pink","#FF82AB")) + theme_classic()
+dev.off()
+
+pdf(file.path(Output_Figs_sc_RNA, "Persister_signature_GOFsamples.pdf"))
+metadata %>%  ggplot(aes(x = Assignment, y = signature_1Pers.signature.Ucell, fill = Assignment)) + geom_boxplot(outliers = F) + theme_classic() + scale_fill_manual(values = c("grey60","#FF82AB", "grey60", "pink", "pink")) + theme(legend.position = "none")
+dev.off()
+
+
+```
+

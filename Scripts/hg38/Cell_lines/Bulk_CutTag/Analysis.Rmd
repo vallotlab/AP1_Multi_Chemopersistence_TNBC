@@ -2,4 +2,454 @@
 title: "Analysis.Rmd"
 author: "Gregoire Jouault"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
+
+Initialisation of packages / functions / paths
+```{r, eval=FALSE}
+library(here)
+source(file.path(here(),"Scripts","global_var.R"))
+maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Chemopersistance_2/")
+maindir = here()
+Annotations = file.path(maindir, "Annotations")
+Peaks_indiv = file.path(Annotations, "Peaks_Individual")
+Peaks_common = file.path(Annotations, "Peaks_Common")
+Bams_path = file.path(maindir, "Input", "hg38", "Cell_lines","Bulk_CutTag", "BAM")
+Output_Objects_BulkCutTag = file.path(maindir, "Output", "Objects", "hg38", "Cell_lines", "Bulk_CutTag")
+Output_Figs_BulkCutTag = file.path(maindir, "Output", "Figs", "hg38", "Cell_lines", "Bulk_CutTag")
+Output_Objects_sc_RNA = file.path(maindir, "Output", "Objects", "hg38", "Cell_lines", "scRNAseq")
+```
+
+Differential Analysis, PCA, volcano plots & Motif enrichment for H3K27ac 5FU vs WT - H3K27ac peaks
+```{r}
+countMat = qs::qread(file.path(Output_Objects_BulkCutTag, "countMat_MM468_5FU_WT_GOF_H3K27ac_H3K27acpeaks.qs"))
+
+#Select columns 
+countMat = countMat[,grep("5FU|WT", colnames(countMat))]
+
+#Load peak annot 
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+condition = factor(gsub(".*(5FU|WT)_.*","\\1",colnames(countMat)))
+condition = fct_rev(condition)
+selectR = which(rowSums(countMat) > 5) ## remove low count genes
+dataS = countMat[selectR,]
+dds = DESeq2::DESeqDataSetFromMatrix(countData = dataS,
+                                     colData = DataFrame(condition),
+                                     design = ~ condition)
+DDS = DESeq2::DESeq(dds)
+normDDS = counts(DDS, normalized = TRUE) ## normalization with respect to the sequencing depth
+
+se <- SummarizedExperiment(log2(normDDS + 1), colData = colData(dds))
+matrice.pca = log2(normDDS + 1)
+rv = apply(matrice.pca, 1, var)
+o <- order(rv, decreasing=TRUE)
+top500 <- head(o, 500)
+matrice.pca = matrice.pca[top500,]
+matrice.pca = t(matrice.pca)
+res.pca = prcomp(matrice.pca)
+df_pca = factoextra::get_pca_ind(res.pca)
+df_pca = data.frame(df_pca$coord)
+df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
+df_pca$Sample = rownames(df_pca)
+df_pca$treatment = gsub(".*(5FU|WT)_.*","\\1", df_pca$Sample)
+
+pdf(file.path(Output_Figs_BulkCutTag,"PCA_H3K27ac_5FU_WT.pdf"), width = 10,height = 10)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = treatment)) + 
+  geom_point(size = 8, shape = 21, color = "black") + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = c("chartreuse4","grey10")) + 
+  theme(legend.position = "none")
+dev.off()
+
+colnames(normDDS) = paste0(colnames(normDDS), "_norm")
+res = DESeq2::results(DDS, independentFiltering = FALSE, altHypothesis = "greaterAbs")
+
+countMatDiff = cbind(dataS, normDDS, res)
+head(countMatDiff)
+gene_MatDiff = data.frame(countMatDiff)
+gene_MatDiff$peak_loca = rownames(gene_MatDiff)
+masterPeak = as.data.frame(masterPeak)
+gene_MatDiff = merge(gene_MatDiff,masterPeak, by = "peak_loca")
+gene_MatDiff$tvalue = gene_MatDiff$log2FoldChange*(-log10(gene_MatDiff$padj))
+gene_MatDiff$padj[which(is.na(gene_MatDiff$padj))] = 1
+gene_MatDiff = gene_MatDiff %>% mutate(status = case_when(padj > 0.05 ~ "Not Sig", 
+                                        padj < 0.05 & log2FoldChange < -1 ~ "Down", 
+                                        padj < 0.05 & log2FoldChange > 1 ~ "Up", 
+                                        abs(log2FoldChange) <= 1 ~ "Not Sig"))
+table(gene_MatDiff$status)
+
+#Save the DA
+write.csv(gene_MatDiff[,-grep("MM468", colnames(gene_MatDiff))], file.path(Output_Objects_BulkCutTag, "DA_H3K27ac_5FU_WT_H3K27acpeaks.csv"), row.names = F)
+
+#Plot the Volcano
+png(file.path(Output_Figs_BulkCutTag,"Volcanoplot_H3K27ac_5FU_WT.png"), res = 400, width = 2000, height = 2000)
+gene_MatDiff %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj), fill = status)) + 
+  geom_point(size = 4, alpha = 0.4, shape = 21, color = "black") +   
+  geom_hline(yintercept = -log10(0.05), linetype="dashed") + 
+  geom_vline(xintercept = 1, linetype="dashed") +
+  geom_vline(xintercept = -1, linetype="dashed") +
+  theme_classic() +
+  scale_fill_manual(values = c("lightskyblue", "grey50", "tomato")) +
+  theme(legend.position = "none")
+dev.off()
+
+#Motif Enrichment 
+hg.genome = BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
+meme_db = read_meme(file.path(Annotations, "H12CORE_meme_format.meme")) %>% to_df()
+meme_db = to_list(meme_db)
+
+Motif_diff = gene_MatDiff %>% dplyr::filter(padj < 0.05 & log2FoldChange > 0) %>% dplyr::slice_max(tvalue, n=1000) %>% plyranges::as_granges() %>% memes::get_sequence(hg.genome)
+Background = gene_MatDiff %>% dplyr::filter(!(padj < 0.05 & log2FoldChange > 0)) %>% dplyr::slice_sample(n=5000) %>% plyranges::as_granges() %>% memes::get_sequence(hg.genome)
+
+AME_K27AC_5FU_WT = memes::runAme(Motif_diff,Background, database = meme_db)
+AME_K27AC_5FU_WT$motif_alt_id = gsub("(.*)\\.H12.*", "\\1", AME_K27AC_5FU_WT$motif_id)
+write.csv(AME_K27AC_5FU_WT, file.path(Output_Objects_BulkCutTag, "MotifEnrichment_H3K27ac_5FU_WT_H3K27acpeaks.csv"), row.names = F)
+
+pdf(file.path(Output_Figs_BulkCutTag,"MotifEnrichment_H3K27ac_5FU_WT.pdf"), width = 10,height = 10)
+AME_K27AC_5FU_WT %>% ggplot(aes(y = log10(adj.pvalue), x = rank)) +
+  geom_point() +
+  theme_classic() +
+  theme(legend.position = "none") +
+  ggrepel::geom_label_repel(data=dplyr::filter(AME_K27AC_5FU_WT, log10(adj.pvalue) < -100), aes(label=motif_alt_id), size = 5, max.overlaps = 50)
+dev.off()
+```
+
+Differential Analysis, PCA & Correlation for H3K27ac|FOSL1 5FU vs WT - Common peaks
+```{r}
+countMat = qs::qread(file.path(Output_Objects_BulkCutTag, "countMat_MM468_Allsamples_Commonpeaks.qs"))
+
+#Select columns 
+countMat = countMat[,grep("5FU|WT", colnames(countMat))]
+
+#Load peak annot 
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac_&_FOSL1.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+condition = factor(gsub(".*(5FU|WT)_.*(FOSL1|H3K27ac)","\\1_\\2",colnames(countMat)))
+condition = fct_rev(condition)
+selectR = which(rowSums(countMat) > 5) ## remove low count genes
+dataS = countMat[selectR,]
+dds = DESeq2::DESeqDataSetFromMatrix(countData = dataS,
+                                     colData = DataFrame(condition),
+                                     design = ~ condition)
+DDS = DESeq2::DESeq(dds)
+normDDS = counts(DDS, normalized = TRUE) ## normalization with respect to the sequencing depth
+
+se <- SummarizedExperiment(log2(normDDS + 1), colData = colData(dds))
+matrice.pca = log2(normDDS + 1)
+rv = apply(matrice.pca, 1, var)
+o <- order(rv, decreasing=TRUE)
+top500 <- head(o, 500)
+matrice.pca = matrice.pca[top500,]
+matrice.pca = t(matrice.pca)
+res.pca = prcomp(matrice.pca)
+df_pca = factoextra::get_pca_ind(res.pca)
+df_pca = data.frame(df_pca$coord)
+df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
+df_pca$Sample = rownames(df_pca)
+df_pca$treatment = gsub(".*(5FU|WT)_.*","\\1", df_pca$Sample)
+df_pca$Mark = gsub(".*(FOSL1|H3K27ac)","\\1_\\2", df_pca$Sample)
+
+
+pdf(file.path(Output_Figs_BulkCutTag,"PCA_H3K27ac_&_FOSL1_5FU_WT.pdf"), width = 10,height = 10)
+
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = treatment, shape = Mark)) +
+  geom_point(size = 8, color = "black") +
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) +
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) +
+  geom_hline(yintercept = 0, linetype="dashed") +
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = c("chartreuse4","grey10"))+
+  scale_shape_manual(values = c(21,24)) +
+  theme(legend.position = "none")
+dev.off()
+
+# DA 
+res = DESeq2::results(DDS, independentFiltering = FALSE, altHypothesis = "greaterAbs", contrast = c("condition", "5FU_H3K27ac", "WT_H3K27ac"))
+
+gene_MatDiff = data.frame(res)
+gene_MatDiff$tvalue = gene_MatDiff$log2FoldChange*(-log10(gene_MatDiff$padj))
+gene_MatDiff$peak_loca = rownames(gene_MatDiff)
+gene_MatDiff = gene_MatDiff %>% mutate(Status_H3K27ac_5FU_WT = case_when(padj > 0.05 ~ "Not Sig", 
+                                        padj < 0.05 & log2FoldChange < 0 ~ "Down", 
+                                        padj < 0.05 & log2FoldChange > 0 ~ "Up"))
+Comparison_FOSL1_H3K27AC = gene_MatDiff
+colnames(Comparison_FOSL1_H3K27AC) = paste0("H3K27ac_",colnames(Comparison_FOSL1_H3K27AC))
+
+res = DESeq2::results(DDS, independentFiltering = FALSE, altHypothesis = "greaterAbs", contrast = c("condition", "5FU_FOSL1", "WT_FOSL1"))
+
+gene_MatDiff = data.frame(res)
+gene_MatDiff$tvalue = gene_MatDiff$log2FoldChange*(-log10(gene_MatDiff$padj))
+gene_MatDiff$peak_loca = rownames(gene_MatDiff)
+gene_MatDiff = gene_MatDiff %>% mutate(Status_FOSL1_5FU_WT = case_when(padj > 0.05 ~ "Not Sig", 
+                                        padj < 0.05 & log2FoldChange < 0 ~ "Down", 
+                                        padj < 0.05 & log2FoldChange > 0 ~ "Up"))
+colnames(gene_MatDiff) = paste0("FOSL1_",colnames(gene_MatDiff))
+
+Comparison_FOSL1_H3K27AC = cbind(Comparison_FOSL1_H3K27AC, gene_MatDiff)
+
+Comparison_FOSL1_H3K27AC$density = get_density(Comparison_FOSL1_H3K27AC$H3K27ac_log2FoldChange, Comparison_FOSL1_H3K27AC$FOSL1_log2FoldChange, n = 1000)
+
+
+png(file.path(Output_Figs_BulkCutTag,"Correlation_H3K27ac_&_FOSL1_5FU_WT.png"), res = 400,  width = 2000, height = 2000)
+
+Comparison_FOSL1_H3K27AC %>% 
+  ggplot(aes(x = H3K27ac_log2FoldChange, y = FOSL1_log2FoldChange, color = density)) + 
+  geom_point() +
+  stat_cor() +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype="dashed") +
+  geom_vline(xintercept = 0, linetype="dashed") + 
+  scale_color_viridis() +
+  theme(legend.position = "none")
+
+dev.off()
+
+```
+
+PCA & Correlation for FOSL1 5FU, GOF, WT, VPR, GOFctrl, VPRctrl - FOSL1 peaks
+```{r}
+countMat = qs::qread(file.path(Output_Objects_BulkCutTag, "countMat_MM468_5FU_WT_VPR_GOF_VPRctrl_GOFctrl_FOSL1_FOSL1peaks.qs"))
+
+
+#Load peak annot 
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_FOSL1.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+condition = factor(gsub(".*(5FU|WT|GOF|GOFctrl|VPR|VPRctrl)_.*","\\1",colnames(countMat)))
+condition = fct_rev(condition)
+selectR = which(rowSums(countMat) > 5) ## remove low count genes
+dataS = countMat[selectR,]
+dds = DESeq2::DESeqDataSetFromMatrix(countData = dataS,
+                                     colData = DataFrame(condition),
+                                     design = ~ condition)
+DDS = DESeq2::DESeq(dds)
+normDDS = counts(DDS, normalized = TRUE) ## normalization with respect to the sequencing depth
+
+se <- SummarizedExperiment(log2(normDDS + 1), colData = colData(dds))
+matrice.pca = log2(normDDS + 1)
+rv = apply(matrice.pca, 1, var)
+o <- order(rv, decreasing=TRUE)
+top500 <- head(o, 500)
+matrice.pca = matrice.pca[top500,]
+matrice.pca = t(matrice.pca)
+res.pca = prcomp(matrice.pca)
+df_pca = factoextra::get_pca_ind(res.pca)
+df_pca = data.frame(df_pca$coord)
+df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
+df_pca$Sample = rownames(df_pca)
+df_pca$treatment = gsub(".*(5FU|WT|GOF|GOFctrl|VPR|VPRctrl)_.*","\\1", df_pca$Sample)
+
+
+pdf(file.path(Output_Figs_BulkCutTag,"PCA_FOSL1_All.pdf"), width = 10,height = 10)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = treatment)) + 
+  geom_point(size = 8, shape = 21, color = "black") + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = c("chartreuse4","#FF82AB","grey50","pink","grey30","grey10"))+
+  theme(legend.position = "none")
+dev.off()
+
+```
+
+Differential Analysis for H3K27ac|FOSL1 5FU & GOF vs WT - Common peaks
+```{r}
+countMat = qs::qread(file.path(Output_Objects_BulkCutTag, "countMat_MM468_Allsamples_Commonpeaks.qs"))
+
+#Select columns 
+countMat = countMat[,grep("5FU|WT|GOF", colnames(countMat))]
+countMat = countMat[,grep("ctrl", colnames(countMat), invert = T)]
+
+#Load peak annot 
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac_&_FOSL1.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+condition = factor(gsub(".*(5FU|WT|GOF)_.*(FOSL1|H3K27ac)","\\1_\\2",colnames(countMat)))
+condition = fct_rev(condition)
+selectR = which(rowSums(countMat) > 5) ## remove low count genes
+dataS = countMat[selectR,]
+dds = DESeq2::DESeqDataSetFromMatrix(countData = dataS,
+                                     colData = DataFrame(condition),
+                                     design = ~ condition)
+DDS = DESeq2::DESeq(dds)
+normDDS = counts(DDS, normalized = TRUE) ## normalization with respect to the sequencing depth
+
+se <- SummarizedExperiment(log2(normDDS + 1), colData = colData(dds))
+
+# DA 
+res = DESeq2::results(DDS, independentFiltering = FALSE, altHypothesis = "greaterAbs", contrast = c("condition", "5FU_H3K27ac", "WT_H3K27ac"))
+
+gene_MatDiff = data.frame(res)
+gene_MatDiff$tvalue = gene_MatDiff$log2FoldChange*(-log10(gene_MatDiff$padj))
+gene_MatDiff = gene_MatDiff %>% mutate(Status_H3K27ac_5FU_WT = case_when(padj > 0.05 ~ "Not Sig", 
+                                        padj < 0.05 & log2FoldChange < 0 ~ "Down", 
+                                        padj < 0.05 & log2FoldChange > 0 ~ "Up"))
+Comparison_FOSL1_H3K27AC = gene_MatDiff
+colnames(Comparison_FOSL1_H3K27AC) = paste0("H3K27ac_5FUvsWT_",colnames(Comparison_FOSL1_H3K27AC))
+
+res = DESeq2::results(DDS, independentFiltering = FALSE, altHypothesis = "greaterAbs", contrast = c("condition", "5FU_FOSL1", "WT_FOSL1"))
+
+gene_MatDiff = data.frame(res)
+gene_MatDiff$tvalue = gene_MatDiff$log2FoldChange*(-log10(gene_MatDiff$padj))
+gene_MatDiff = gene_MatDiff %>% mutate(Status_FOSL1_5FU_WT = case_when(padj > 0.05 ~ "Not Sig", 
+                                        padj < 0.05 & log2FoldChange < 0 ~ "Down", 
+                                        padj < 0.05 & log2FoldChange > 0 ~ "Up"))
+colnames(gene_MatDiff) = paste0("FOSL1_5FUvsWT_",colnames(gene_MatDiff))
+
+Comparison_FOSL1_H3K27AC = cbind(Comparison_FOSL1_H3K27AC, gene_MatDiff)
+
+res = DESeq2::results(DDS, independentFiltering = FALSE, altHypothesis = "greaterAbs", contrast = c("condition", "GOF_H3K27ac", "WT_H3K27ac"))
+
+gene_MatDiff = data.frame(res)
+gene_MatDiff$tvalue = gene_MatDiff$log2FoldChange*(-log10(gene_MatDiff$padj))
+gene_MatDiff = gene_MatDiff %>% mutate(Status_H3K27ac_GOF_WT = case_when(padj > 0.05 ~ "Not Sig", 
+                                        padj < 0.05 & log2FoldChange < 0 ~ "Down", 
+                                        padj < 0.05 & log2FoldChange > 0 ~ "Up"))
+colnames(gene_MatDiff) = paste0("H3K27ac_GOFvsWT_",colnames(gene_MatDiff))
+Comparison_FOSL1_H3K27AC = cbind(Comparison_FOSL1_H3K27AC, gene_MatDiff)
+
+
+res = DESeq2::results(DDS, independentFiltering = FALSE, altHypothesis = "greaterAbs", contrast = c("condition", "GOF_FOSL1", "WT_FOSL1"))
+
+gene_MatDiff = data.frame(res)
+gene_MatDiff$tvalue = gene_MatDiff$log2FoldChange*(-log10(gene_MatDiff$padj))
+gene_MatDiff = gene_MatDiff %>% mutate(Status_FOSL1_GOF_WT = case_when(padj > 0.05 ~ "Not Sig", 
+                                        padj < 0.05 & log2FoldChange < 0 ~ "Down", 
+                                        padj < 0.05 & log2FoldChange > 0 ~ "Up"))
+colnames(gene_MatDiff) = paste0("FOSL1_GOFvsWT_",colnames(gene_MatDiff))
+
+Comparison_FOSL1_H3K27AC = cbind(Comparison_FOSL1_H3K27AC, gene_MatDiff)
+Comparison_FOSL1_H3K27AC$peak_loca = rownames(Comparison_FOSL1_H3K27AC)
+masterPeak = as.data.frame(masterPeak)
+Comparison_FOSL1_H3K27AC = merge(Comparison_FOSL1_H3K27AC,masterPeak, by = "peak_loca")
+
+write.csv(Comparison_FOSL1_H3K27AC, file.path(Output_Objects_BulkCutTag, "DA_H3K27ac_FOSL1_5FU&GOF_vs_WT_Commonpeaks.csv"), row.names = F)
+```
+
+Correlation between CUT&Tag & RNAseq 
+```{r}
+Comparison_FOSL1_H3K27AC = read.csv(file.path(Output_Objects_BulkCutTag, "DA_H3K27ac_FOSL1_5FU&GOF_vs_WT_Commonpeaks.csv"))
+da_persisters = read.csv(file.path(Output_Objects_sc_RNA, "DA_MM468_persister.csv"))
+da_persisters = da_persisters %>% mutate(quantile = ntile(avg_log2FC, 10))
+
+# Correlation between H3K27ac after 5FU & RNA after 5FU
+mat_quantile = Comparison_FOSL1_H3K27AC %>% dplyr::filter(H3K27ac_5FUvsWT_log2FoldChange > 0 & H3K27ac_5FUvsWT_padj < 0.05) %>% group_by(Nearest_gene) %>% dplyr::summarise(count = n())
+da_persisters. = merge(da_persisters, mat_quantile, by.x = "Symbol", by.y = "Nearest_gene", all.x = T)
+plot.df = da_persisters. %>% group_by(quantile) %>% summarise(count_up = sum(count, na.rm = T)) 
+
+pdf(file.path(Output_Figs_BulkCutTag, "Correlation_H3K27ac_CT_&_RNA_5FU.pdf"), width = 10, height = 10)
+plot.df %>% ggplot(aes(y = count_up, x = quantile)) + geom_point(size = 3, color = "black")+ geom_bar(aes(y = max(count_up), fill = quantile), alpha = 0.5, stat = "identity") + theme_classic() + scale_fill_gradient2(low = "deepskyblue", mid = "grey95", high = "tomato", midpoint = 5) + theme(legend.position = "none")
+dev.off()
+
+# Correlation between H3K27ac after GOF & RNA after 5FU
+mat_quantile = Comparison_FOSL1_H3K27AC %>% dplyr::filter(H3K27ac_GOFvsWT_log2FoldChange > 0 & H3K27ac_GOFvsWT_padj < 0.05) %>% group_by(Nearest_gene) %>% dplyr::summarise(count = n())
+da_persisters. = merge(da_persisters, mat_quantile, by.x = "Symbol", by.y = "Nearest_gene", all.x = T)
+plot.df = da_persisters. %>% group_by(quantile) %>% summarise(count_up = sum(count, na.rm = T)) 
+
+pdf(file.path(Output_Figs_BulkCutTag, "Correlation_H3K27ac_CT_GOF_&_RNA_5FU.pdf"), width = 10, height = 10)
+plot.df %>% ggplot(aes(y = count_up, x = quantile)) + geom_point(size = 3, color = "black")+ geom_bar(aes(y = 810, fill = quantile), alpha = 0.5, stat = "identity") + theme_classic() + scale_fill_gradient2(low = "deepskyblue", mid = "grey95", high = "tomato", midpoint = 5) + theme(legend.position = "none")
+dev.off()
+
+# Correlation between FOSL1 after GOF & RNA after 5FU
+mat_quantile = Comparison_FOSL1_H3K27AC %>% dplyr::filter(FOSL1_GOFvsWT_log2FoldChange > 0 & FOSL1_GOFvsWT_padj < 0.05) %>% group_by(Nearest_gene) %>% dplyr::summarise(count = n())
+da_persisters. = merge(da_persisters, mat_quantile, by.x = "Symbol", by.y = "Nearest_gene", all.x = T)
+plot.df = da_persisters. %>% group_by(quantile) %>% summarise(count_up = sum(count, na.rm = T)) 
+
+pdf(file.path(Output_Figs_BulkCutTag, "Correlation_FOSL1_CT_GOF_&_RNA_5FU.pdf"), width = 10, height = 10)
+plot.df %>% ggplot(aes(y = count_up, x = quantile)) + geom_point(size = 3, color = "black")+ geom_bar(aes(y = 810, fill = quantile), alpha = 0.5, stat = "identity") + theme_classic() + scale_fill_gradient2(low = "deepskyblue", mid = "grey95", high = "tomato", midpoint = 5) + theme(legend.position = "none")
+dev.off()
+```
+
+PCA for H3K27ac in 5FU, WT & GOF 
+```{r}
+countMat = qs::qread(file.path(Output_Objects_BulkCutTag, "countMat_MM468_5FU_WT_GOF_H3K27ac_H3K27acpeaks.qs"))
+
+#Load peak annot 
+Peak = read.table(file.path(Peaks_common, "Peaks_MACS2_Common_H3K27ac.bed"), header = FALSE, fill = TRUE)
+Peak = GRanges(seqnames = Peak$V1, IRanges(start = Peak$V2, end = Peak$V3), strand = "*")
+masterPeak = Associate_Annot(Peak, Annotations)
+
+condition = factor(gsub(".*(5FU|WT|GOF)_.*","\\1",colnames(countMat)))
+condition = fct_rev(condition)
+selectR = which(rowSums(countMat) > 5) ## remove low count genes
+dataS = countMat[selectR,]
+dds = DESeq2::DESeqDataSetFromMatrix(countData = dataS,
+                                     colData = DataFrame(condition),
+                                     design = ~ condition)
+DDS = DESeq2::DESeq(dds)
+normDDS = counts(DDS, normalized = TRUE) ## normalization with respect to the sequencing depth
+
+se <- SummarizedExperiment(log2(normDDS + 1), colData = colData(dds))
+matrice.pca = log2(normDDS + 1)
+rv = apply(matrice.pca, 1, var)
+o <- order(rv, decreasing=TRUE)
+top500 <- head(o, 500)
+matrice.pca = matrice.pca[top500,]
+matrice.pca = t(matrice.pca)
+res.pca = prcomp(matrice.pca)
+df_pca = factoextra::get_pca_ind(res.pca)
+df_pca = data.frame(df_pca$coord)
+df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
+df_pca$Sample = rownames(df_pca)
+df_pca$treatment = gsub(".*(5FU|WT|GOF)_.*","\\1", df_pca$Sample)
+
+pdf(file.path(Output_Figs_BulkCutTag,"PCA_H3K27ac_5FU_WT_GOF.pdf"), width = 10,height = 10)
+df_pca %>% ggplot(aes(x = Dim.1, y = Dim.2, fill = treatment)) + 
+  geom_point(size = 8, shape = 21, color = "black") + 
+  theme_classic() +
+  xlab(paste0("Dim.1 (",df_pca_contrib[1], "%)")) + 
+  ylab(paste0("Dim.2 (",df_pca_contrib[2], "%)")) + 
+  geom_hline(yintercept = 0, linetype="dashed") + 
+  geom_vline(xintercept = 0, linetype="dashed") +
+  scale_fill_manual(values = c("chartreuse4","#FF82AB","grey10")) + 
+  theme(legend.position = "none")
+dev.off()
+
+```
+
+Plot Heatmap with Deeptools 
+```{bash}
+## Deeptools command to compute the matrix of FOSL1 5FU on 5FU + WT peaks 
+computeMatrix scale-regions -R /Volumes/LaCie/InstitutCurie/Documents/Data/results/Chemopersistance_2/Output/Bulk_CutTag/Clean_Output/Bed_Peaks_FOSL1_WT_5FU.bed -S /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_WT_5FU_d35_n1_AM_m04y23_FOSL1.bw -o Matrix_FOSL1_5FU --outFileNameMatrix Matrix_FOSL1_5FU.tab --outFileSortedRegions FOSL1_5FU_SortedRegions.bed --startLabel "Peak Start" --endLabel "Peak End" -b 500 -a 500 -m 2000 --sortRegions descend -p "max/2"
+
+plotHeatmap -m Matrix_FOSL1_5FU -o Heatmap_FOSL1_5FU.pdf
+
+computeMatrix scale-regions -R FOSL1_5FU_SortedRegions.bed -S /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_WT_d0_n1_AM_m04y23_FOSL1.bw -o Matrix_FOSL1_WT.gz --outFileNameMatrix Matrix_FOSL1_WT.tab -b 500 -a 500 -m 2000 -p "max/2"
+
+plotHeatmap -m Matrix_FOSL1_WT.gz -o Heatmap_FOSL1_WT.pdf --sortRegions no
+
+computeMatrix scale-regions -R FOSL1_5FU_SortedRegions.bed -S /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_FOSL1_GOF_AM_m10y22_HA.bw -o Matrix_FOSL1_GOF.gz --outFileNameMatrix Matrix_FOSL1_GOF.tab -b 500 -a 500 -m 2000 -p "max/2"
+
+## Deeptools command to compute the matrix of FOSL1 5FU on WT + 5FU + GOF, using 5FU peaks & ordered on 5FU  
+computeMatrix scale-regions -R /Volumes/LaCie/InstitutCurie/Documents/Data/results/Chemopersistance_2/Input/Bulk_CutTag/Clean_Input/Peaks/MM468_5FU_FOSL1_peaks.narrowPeak -S /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_WT_d0_n1_AM_m04y23_FOSL1.bw /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_WT_5FU_d35_n1_AM_m04y23_FOSL1.bw /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_FOSL1_GOF_AM_m10y22_HA.bw -o Matrix_FOSL1_WT_5FU_GOF.gz --outFileNameMatrix Matrix_FOSL1_WT_5FU_GOF.tab --outFileSortedRegions FOSL1_WT_5FU_GOF_SortedRegions.bed --startLabel "Peak Start" --endLabel "Peak End" -b 500 -a 500 -m 2000 --sortRegions descend -p "max/2" --sortUsingSamples 2
+
+## Deeptools command to compute the matrix of H3K27AC 5FU on WT + 5FU + GOF, using genes & ordered on 5FU exp
+computeMatrix scale-regions -R /Volumes/LaCie/InstitutCurie/Documents/Data/results/Chemopersistance_2/Output/Bulk_CutTag/Clean_Output/Bed_Genes_ordered_5FUexp.bed -S /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_WT_d0_n3_AM_m04y23_H3K27ac.bw /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_WT_5FU_d35_n3_AM_m04y23_H3K27ac.bw /Volumes/LaCie/InstitutCurie/Documents/Data/Downloads/Bulk_CutTag_MM468_bw/MM468_NB_hu_FOSL1_GOF_n3_AM_m04y23_H3K27ac.bw -o Matrix_H3K27AC_WT_5FU_GOF.gz --outFileNameMatrix Matrix_H3K27AC_WT_5FU_GOF.tab --outFileSortedRegions H3K27AC_WT_5FU_GOF_SortedRegions.bed -b 5000 -a 2000 -m 15000 --sortRegions no -p "max/2"
+
+
+computeMatrix scale-regions -R /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Annotations/Peaks_Common/Peaks_MACS2_Common_FOSL1.bed -S /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_WT_d0_n1_AM_m04y23_FOSL1.bw /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_WT_d0_n2_AM_m04y23_FOSL1.bw /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_WT_d0_n3_AM_m04y23_FOSL1.bw /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_WT_5FU_d35_n1_AM_m04y23_FOSL1.bw /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_WT_5FU_d35_n2_AM_m04y23_FOSL1.bw /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_WT_5FU_d35_n3_AM_m04y23_FOSL1.bw /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_FOSL1_GOF_AM_m10y22_HA.bw /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_FOSL1_GOF_n2_AM_m04y23_HA.bw /Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1/Input/hg38/Cell_lines/Bulk_CutTag/Bigwigs/MM468_NB_hu_FOSL1_GOF_n3_AM_m04y23_HA.bw -o Matrix_FOSL1_WT_5FU_GOF_All.gz --outFileNameMatrix Matrix_FOSL1_WT_5FU_GOF_All.tab --outFileSortedRegions FOSL1_WT_5FU_GOF_All_SortedRegions.bed --startLabel "Peak Start" --endLabel "Peak End" -b 500 -a 500 -m 2000 --sortRegions descend -p "max/2" --sortUsingSamples 4 5 6
+```
+
+
+
+
+
+
+
+

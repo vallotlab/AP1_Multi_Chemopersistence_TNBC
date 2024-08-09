@@ -2,5 +2,139 @@
 title: "QCs_&_Objects.Rmd"
 author: "Gregoire Jouault"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
+
+Initialisation of packages / functions / paths
+```{r, eval=FALSE}
+library(here)
+source(file.path(here(),"Scripts","global_var.R"))
+maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Chemopersistance_2/")
+maindir = here()
+# maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1")
+Input_raw_sc_RNA = file.path(maindir, "Input","hg38", "Cell_lines", "scRNAseq")
+Output_Objects_sc_RNA = file.path(maindir, "Output", "Objects", "hg38", "Cell_lines", "scRNAseq")
+Output_Figs_sc_RNA = file.path(maindir, "Output", "Figs", "hg38", "hg38", "Cell_lines", "scRNAseq")
+```
+
+QCs parameters (nCount (min|max) / nFeatures (min|max) / MT% max)
+```{r}
+
+QCs_param_list = list(
+  MM468_5FU1_day33 = c(3000,100000,3000,8000,15), 
+  MM468_5FU2_day67 = c(3000,100000,3000,8000,15),  
+  MM468_5FU3_day50 = c(3000,100000,3000,8000,15),  
+  MM468_5FU3_day77 = c(3000,100000,3000,8000,15), 
+  MM468_chemonaive = c(3000,100000,3000,8000,15), 
+  BT20_chemonaive = c(3000,100000,3000,8000,15),
+  BT20_persister = c(3000,100000,3000,8000,15),  
+  HCC38_chemonaive = c(3000,100000,3000,8000,15),  
+  HCC38_persister = c(3000,100000,3000,8000,15))
+
+```
+
+Function to apply the predefined QCs & create Seurat Object
+```{r}
+Create_objects_Apply_QCs = function(
+    sample, 
+    QCs_param, 
+    Input_raw_sc_RNA,
+    Output_Objects_sc_RNA
+){
+  
+   print(paste0("Processing Sample ", sample))
+  count.mat = readMM(file.path(Input_raw_sc_RNA,paste0(sample, "_matrix.mtx.gz")))
+  feature.mat = read.table(file.path(Input_raw_sc_RNA,paste0(sample, "_features.tsv.gz")))
+  barcode.mat = read.table(file.path(Input_raw_sc_RNA,paste0(sample, "_barcodes.tsv.gz")))
+
+  rownames(count.mat) = make.names(feature.mat$V2, unique = T)
+  colnames(count.mat) = paste0(sample, "_",barcode.mat$V1)
+
+  scRNA = CreateSeuratObject(count.mat, min.cells = 1, min.features = 1)
+  scRNA$sample = sample
+  scRNA$Cell_ID = rownames(scRNA@meta.data)
+  scRNA$log10GenesPerUMI <- log10(scRNA$nFeature_RNA) / log10(scRNA$nCount_RNA)
+  scRNA$MT_percent = PercentageFeatureSet(scRNA, pattern = "^MT.")
+  scRNA$ERCC_percent = PercentageFeatureSet(scRNA, pattern = "^ERCC")
+  scRNA$RB_percent = PercentageFeatureSet(scRNA, pattern = "^RP[SL][[:digit:]]|^RP[[:digit:]]|^RPSA")
+  metadata = scRNA@meta.data
+  scRNA_filtered = subset(scRNA, subset = nCount_RNA > QCs_param[1] & nCount_RNA < QCs_param[2] & nFeature_RNA > QCs_param[3] & nFeature_RNA < QCs_param[4] & MT_percent < QCs_param[5])
+  
+  # Threshold to be able to use scDblFinder
+  if (dim(scRNA_filtered)[2] > 10) {
+  #Remove doublets using scDBlFinder 
+  scRNA_filtered = as.SingleCellExperiment(scRNA_filtered, assay = "RNA")
+  scRNA_filtered = scDblFinder::scDblFinder(scRNA_filtered)
+  scRNA_filtered = as.Seurat(scRNA_filtered, data = "counts")
+  scRNA_filtered = subset(scRNA_filtered, subset = scDblFinder.class == "singlet")} 
+  
+  qs::qsave(scRNA_filtered, file.path(Output_Objects_sc_RNA, paste0(sample, "_Seuratobject_filtered.qs")))
+}
+```
+
+Apply the Apply_QCs_and_make_plots to all the Cell_lines Persister & Chemonaives
+```{r}
+for (sample in Cell_lines_samples) {
+  QCs_param = QCs_param_list[[sample]]
+  Create_objects_Apply_QCs(
+    sample, 
+    QCs_param, 
+    Input_raw_sc_RNA,
+    Output_Objects_sc_RNA)
+}
+```
+
+Merge the MM468 5FU to create MM468 persister
+```{r}
+MM468_5FU1_day33 = qs::qread(file.path(Output_Objects_sc_RNA, "MM468_5FU1_day33_Seuratobject_filtered.qs"))
+MM468_5FU1_day33$sample_ID = MM468_5FU1_day33$sample
+MM468_5FU1_day33$sample = "MM468_persister"
+
+MM468_5FU2_day67 = qs::qread(file.path(Output_Objects_sc_RNA, "MM468_5FU2_day67_Seuratobject_filtered.qs"))
+MM468_5FU2_day67$sample_ID = MM468_5FU2_day67$sample
+MM468_5FU2_day67$sample = "MM468_persister"
+  
+MM468_5FU3_day50 = qs::qread(file.path(Output_Objects_sc_RNA, "MM468_5FU3_day50_Seuratobject_filtered.qs"))
+MM468_5FU3_day50$sample_ID = MM468_5FU3_day50$sample
+MM468_5FU3_day50$sample = "MM468_persister"
+  
+MM468_5FU3_day77 = qs::qread(file.path(Output_Objects_sc_RNA, "MM468_5FU3_day77_Seuratobject_filtered.qs"))
+MM468_5FU3_day77$sample_ID = MM468_5FU3_day77$sample
+MM468_5FU3_day77$sample = "MM468_persister"
+
+MM468_persister = merge(MM468_5FU1_day33, y = c(MM468_5FU2_day67, MM468_5FU3_day50, MM468_5FU3_day77))
+qs::qsave(MM468_persister, file.path(Output_Objects_sc_RNA, "MM468_persister_Seuratobject_filtered.qs"))
+```
+
+Create seurat object & filter for GOF experiment
+```{r}
+  count.mat = readMM(file.path(Input_raw_sc_RNA,"MM468_GOF_matrix.mtx.gz"))
+  feature.mat = read.table(file.path(Input_raw_sc_RNA,"MM468_GOF_features.tsv.gz"))
+  barcode.mat = read.table(file.path(Input_raw_sc_RNA,"MM468_GOF_barcodes.tsv.gz"))
+  rownames(count.mat) = make.names(feature.mat$V2, unique = T)
+  cells <- read.csv(file.path(Input_raw_sc_RNA,"MM468_GOF_assignment_confidence_table.csv"))
+  count.mat$`Gene Expression` = count.mat$`Gene Expression`[,cells$Barcodes]
+  rownames(cells) = cells$Barcodes
+  
+  
+  data.raw <- Read10X(data.dir = file.path(Input_raw_sc_RNA, "MM468_GOF"))
+  cells <- read.csv(file.path(Input_raw_sc_RNA,"MM468_GOF","MM468_GOF_assignment_confidence_table.csv"))
+  data.raw$`Gene Expression` = data.raw$`Gene Expression`[,cells$Barcodes]
+  rownames(cells) = paste0(cells$Assignment,"_", cells$Barcodes)
+  seurat_object = CreateSeuratObject(counts = data.raw$`Gene Expression`, meta.data = cells)
+  
+  seurat_object$sample = seurat_object$Assignment
+  seurat_object$Cell_ID = rownames(seurat_object@meta.data)
+  seurat_object$log10GenesPerUMI <- log10(seurat_object$nFeature_RNA) / log10(seurat_object$nCount_RNA)
+  seurat_object$MT_percent = PercentageFeatureSet(seurat_object, pattern = "^MT.")
+  seurat_object$ERCC_percent = PercentageFeatureSet(seurat_object, pattern = "^ERCC")
+  seurat_object$RB_percent = PercentageFeatureSet(seurat_object, pattern = "^RP[SL][[:digit:]]|^RP[[:digit:]]|^RPSA")
+  scRNA_filtered = subset(seurat_object, subset = nCount_RNA > 3000 & nCount_RNA < 100000 & nFeature_RNA > 3000 & nFeature_RNA < 8000 & MT_percent < 15 & Assignment %in% c("GOF_controle", "GOF_FOSL1", "VPR_controle", "VPR_FOSL1_gRNA2", "VPR_FOSL1_gRNA3"))
+  
+ 
+  qs::qsave(scRNA_filtered, file.path(Output_Objects_sc_RNA,"MM468_GOF_Seuratobject_filtered.qs"))
+
+
+```
 

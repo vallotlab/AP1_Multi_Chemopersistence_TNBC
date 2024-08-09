@@ -11,7 +11,7 @@ Initialisation of packages / functions / paths
 library(here)
 source(file.path(here(),"Scripts","global_var.R"))
 maindir = here()
-maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1")
+# maindir = file.path("/Volumes/LaCie/InstitutCurie/Documents/Data/results/Publication_AP1")
 Input_raw_sc_RNA = file.path(maindir, "Output", "Objects", "hg38", "PDX", "RNA", "scRNAseq")
 Input_raw_bulk_RNA = file.path(maindir, "Input", "hg38", "PDX", "RNA", "BulkRNAseq")
 Input_raw_micro_RNA = file.path(maindir, "Input", "hg38", "PDX", "RNA", "Microarray")
@@ -48,7 +48,7 @@ HBCx10_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_chemonaive_r
 HBCx10_AC = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_AC_rawmat.csv"))
 HBCx33_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_chemonaive_rawmat.csv"))
 HBCx33_Cisplatin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Cisplatin_rawmat.csv"))
-HBCx33_Capecitabin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabin_rawmat.csv"))
+HBCx33_Capecitabine = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabine_rawmat.csv"))
 
 # Merge the matrices by techno 
 pseudobulk_mat = as.data.frame(pseudobulk_mat)
@@ -57,7 +57,7 @@ pseudobulk_mat$Symbol = rownames(pseudobulk_mat)
 microarray_mat = merge(HBCx10_AC, HBCx10_chemonaive, by = "Symbol", all = F)
 microarray_mat = merge(microarray_mat, HBCx33_chemonaive, by = "Symbol", all = F)
 microarray_mat = merge(microarray_mat, HBCx33_Cisplatin, by = "Symbol", all = F)
-microarray_mat = merge(microarray_mat, HBCx33_Capecitabin, by = "Symbol", all = F)
+microarray_mat = merge(microarray_mat, HBCx33_Capecitabine, by = "Symbol", all = F)
 
 rnabulk_mat = merge(HBCx14_AC, HBCx14_chemonaive, by = "Symbol", all = F)
 rnabulk_mat = merge(rnabulk_mat, HBCx14_Carboplatin, by = "Symbol", all = F)
@@ -101,7 +101,7 @@ HBCx10_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_chemonaive_r
 HBCx10_AC = read.csv(file.path(Input_raw_micro_RNA, "HBCx10_AC_rawmat.csv"))
 HBCx33_chemonaive = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_chemonaive_rawmat.csv"))
 HBCx33_Cisplatin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Cisplatin_rawmat.csv"))
-HBCx33_Capecitabin = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabin_rawmat.csv"))
+HBCx33_Capecitabine = read.csv(file.path(Input_raw_micro_RNA, "HBCx33_Capecitabine_rawmat.csv"))
 
 # Merge the matrices by techno 
 pseudobulk_mat = as.data.frame(pseudobulk_mat)
@@ -110,7 +110,7 @@ pseudobulk_mat$Symbol = rownames(pseudobulk_mat)
 microarray_mat = merge(HBCx10_AC, HBCx10_chemonaive, by = "Symbol", all = T)
 microarray_mat = merge(microarray_mat, HBCx33_chemonaive, by = "Symbol", all = T)
 microarray_mat = merge(microarray_mat, HBCx33_Cisplatin, by = "Symbol", all = T)
-microarray_mat = merge(microarray_mat, HBCx33_Capecitabin, by = "Symbol", all = T)
+microarray_mat = merge(microarray_mat, HBCx33_Capecitabine, by = "Symbol", all = T)
 microarray_mat[is.na(microarray_mat)] = 0
 
 rnabulk_mat = merge(HBCx14_AC, HBCx14_chemonaive, by = "Symbol", all = T)
@@ -135,8 +135,8 @@ matrice.edger = as.matrix(Common_rawcounts_mat_samples[,-c(1)])
 rownames(matrice.edger) = Common_rawcounts_mat_samples$Symbol
 colnames(matrice.edger)
 vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)))
-groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
-groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabine|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabine")] = "Persister"
 groups[groups %in% c("chemonaive")] = "Untreated"
 groups = factor(groups)
 groups = fct_rev(groups)
@@ -160,8 +160,8 @@ matrice.edger = as.matrix(Common_rawcounts_mat_techno[,-c(1)])
 rownames(matrice.edger) = Common_rawcounts_mat_techno$Symbol
 colnames(matrice.edger)
 vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)))
-groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
-groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabine|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabine")] = "Persister"
 groups[groups %in% c("chemonaive")] = "Untreated"
 groups = factor(groups)
 groups = fct_rev(groups)
@@ -197,12 +197,12 @@ df_pca = data.frame(df_pca$coord)
 df_pca_contrib = round(100*(res.pca$sdev^2/sum(res.pca$sdev^2)), 1)
 df_pca$Sample = rownames(df_pca)
 df_pca$model = gsub("(HBCx.*)_.*","\\1", df_pca$Sample)
-df_pca$suffix = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
+df_pca$suffix = gsub("HBCx.*(AC|Capecitabine|Carboplatin|Cisplatin|chemonaive|Relapse).*","\\1", df_pca$Sample)
 df_pca$state = df_pca$suffix
-df_pca$state[df_pca$state %in% c("AC", "Capecitabin", "Carboplatin", "Cisplatin")] = "Persister"
+df_pca$state[df_pca$state %in% c("AC", "Capecitabine", "Carboplatin", "Cisplatin")] = "Persister"
 table(df_pca$state)
-df_pca$treatment = gsub("HBCx.*(AC|Capecitabin|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
-df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabin"
+df_pca$treatment = gsub("HBCx.*(AC|Capecitabine|Carboplatin|Cisplatin|chemonaive|Cape|Carbo|Cispla|Anthra).*","\\1", df_pca$Sample)
+df_pca$treatment[df_pca$treatment == "Cape"] = "Capecitabine"
 df_pca$treatment[df_pca$treatment == "Cispla"] = "Cisplatin"
 df_pca$treatment[df_pca$treatment == "Anthra"] = "AC"
 
@@ -297,8 +297,8 @@ Make Differential Analysis - tables & volcano plot
 Common_rawcounts_mat_techno = read.csv(file.path(Output_Objects_CommonAnalysis, "Common_rawcounts_mat_common_genes_techno.csv"), row.names = "Symbol")
 matrice.edger = as.matrix(Common_rawcounts_mat_techno)
 vec.batch = factor(gsub("(HBCx.*)_.*", "\\1", colnames(matrice.edger)), levels = c("HBCx172", "HBCx218", "HBCx221", "HBCx10", "HBCx14", "HBCx33", "HBCx39", "HBCx95"))
-groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
-groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+groups = gsub(".*(Untreated|Persister|Relapse|chemonaive|Capecitabine|AC|Carboplatin|Cisplatin).*", "\\1", colnames(matrice.edger))
+groups[groups %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabine")] = "Persister"
 groups[groups %in% c("chemonaive")] = "Untreated"
 groups = factor(groups)
 groups = fct_rev(groups)
@@ -375,8 +375,8 @@ df_boxplot = logCPM[which(rownames(logCPM) %in% List_genes_boxplot),]
 df_boxplot = as.data.frame(df_boxplot)
 df_boxplot$Gene = rownames(df_boxplot)
 df_boxplot = df_boxplot %>% pivot_longer(cols = 1:ncol(df_boxplot)-1, names_to = "Sample", values_to = "LogCount")
-df_boxplot$State = gsub(".*(Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", df_boxplot$Sample)
-df_boxplot$State[df_boxplot$State %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+df_boxplot$State = gsub(".*(Relapse|chemonaive|Capecitabine|AC|Carboplatin|Cisplatin).*", "\\1", df_boxplot$Sample)
+df_boxplot$State[df_boxplot$State %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabine")] = "Persister"
 df_boxplot$State[df_boxplot$State %in% c("chemonaive")] = "Untreated"
 
 
@@ -434,7 +434,7 @@ dev.off()
 Make TFs enrichment Analysis
 ```{r}
 #Load DA table 
-top.table. = read.csv(file.path(Output_Objects_CommonAnalysis, "Differential_Analysis_PDX.csv"))
+top.table = read.csv(file.path(Output_Objects_CommonAnalysis, "Differential_Analysis_PDX.csv"))
 
 #Load TF CollecTRI network
 net = read.csv(file.path(Annotations, "TFs_network_CollecTRI.csv"))
@@ -473,8 +473,8 @@ sample_acts_mat <- sample_acts %>%
               values_from = 'score') %>%
  tibble::column_to_rownames('condition') 
 
-sample_acts_mat$row_order = gsub(".*(Relapse|chemonaive|Capecitabin|AC|Carboplatin|Cisplatin).*", "\\1", rownames(sample_acts_mat))
-sample_acts_mat$row_order[sample_acts_mat$row_order %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabin")] = "Persister"
+sample_acts_mat$row_order = gsub(".*(Relapse|chemonaive|Capecitabine|AC|Carboplatin|Cisplatin).*", "\\1", rownames(sample_acts_mat))
+sample_acts_mat$row_order[sample_acts_mat$row_order %in% c("AC", "Carboplatin", "Cisplatin", "Capecitabine")] = "Persister"
 sample_acts_mat$row_order[sample_acts_mat$row_order %in% c("chemonaive")] = "Untreated"  
 table(sample_acts_mat$row_order)
 sample_acts_mat$row_order = factor(sample_acts_mat$row_order,levels = c("Untreated","Persister", "Relapse"))

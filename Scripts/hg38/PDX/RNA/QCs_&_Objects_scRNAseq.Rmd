@@ -80,15 +80,15 @@ QCs parameters (nCount (min/max) / nFeatures (min/max) / MT% (max))
 ```{r}
 
 QCs_param_list = list(
-  HBCx172_Capecitabin = c(2000,100000,2000,9000,25), 
+  HBCx172_Capecitabine = c(2000,100000,2000,9000,25), 
   HBCx172_chemonaive = c(2000,100000,2000,9000,25), 
   HBCx218_AC = c(2000,100000,2000,9000,25),  
   HBCx218_chemonaive = c(2000,100000,2000,9000,25),  
-  HBCx221_Capecitabin = c(2000,100000,2000,9000,25),  
+  HBCx221_Capecitabine = c(2000,100000,2000,9000,25),  
   HBCx221_chemonaive = c(2000,100000,2000,9000,25), 
-  HBCx39_Capecitabin = c(2000,100000,2000,9000,25),  
+  HBCx39_Capecitabine = c(2000,100000,2000,9000,25),  
   HBCx39_chemonaive = c(2000,100000,2000,9000,25),  
-  HBCx95_Capecitabin = c(2000,100000,2000,9000,25),  
+  HBCx95_Capecitabine = c(2000,100000,2000,9000,25),  
   HBCx95_chemonaive = c(2000,100000,2000,9000,25)
 )
 ```
