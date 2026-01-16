@@ -1,6 +1,7 @@
-# AP-1 drives a recurrent drug persister state in triple negative breast cancer 
+# Characterization of Drug-Tolerant Persister Cells in Triple-Negative Breast Cancer Identifies a Shared Persistence Program across Treatments and Patients 
 
-Scripts to reproduce the analysis in the paper **'AP-1 drives a recurrent drug persister state in triple negative breast cancer'** by _Baudre et al_.
+Scripts to reproduce the analysis in the paper **'Characterization of Drug-Tolerant Persister Cells in Triple-Negative Breast Cancer Identifies a Shared Persistence Program across Treatments and Patients'** by _Baudre and Jouault et al_.
+Link to the paper : https://pubmed.ncbi.nlm.nih.gov/41201442/
 
 ## 0.0 Setup
 
