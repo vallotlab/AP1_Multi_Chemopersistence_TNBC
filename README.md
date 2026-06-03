@@ -2,6 +2,7 @@
 
 Scripts to reproduce the analysis in the paper **'Characterization of Drug-Tolerant Persister Cells in Triple-Negative Breast Cancer Identifies a Shared Persistence Program across Treatments and Patients'** by _Baudre and Jouault et al_.
 Link to the paper : https://pubmed.ncbi.nlm.nih.gov/41201442/
+All datasets produced for this study are available and deposited on GEO at : GSE280454, GSE280455, GSE303200, GSE303201 & GSE303203
 
 ## 0.0 Setup
 
